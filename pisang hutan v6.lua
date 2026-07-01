@@ -258,6 +258,15 @@ local Window = Rayfield:CreateWindow({
     },
 })
 
+-- Notifikasi ini HANYA akan muncul kalau Key BENAR,
+-- karena Rayfield menahan eksekusi script di baris CreateWindow
+-- sampai user memasukkan key yang valid.
+Rayfield:Notify({
+    Title    = "✅ Key Benar!",
+    Content  = "Selamat datang di Hutan Pisang!",
+    Duration = 4,
+})
+
 local MainTab = Window:CreateTab("🍌 Main", 4483362458)
 local SetTab  = Window:CreateTab("⚙️ Settings", 4483362458)
 
