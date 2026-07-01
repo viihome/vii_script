@@ -104,7 +104,7 @@ local function ShowKeyUI(onSuccess)
     Title.Size = UDim2.new(1, -80, 0, 26)
     Title.Position = UDim2.new(0, 28, 0, 22)
     Title.BackgroundTransparency = 1
-    Title.Text = "Hutan Pisang - Key System"
+    Title.Text = "Banana Peel - Hutan by @notceenn"
     Title.Font = Enum.Font.GothamBold
     Title.TextSize = 20
     Title.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -117,7 +117,7 @@ local function ShowKeyUI(onSuccess)
     Sub.Size = UDim2.new(1, -80, 0, 20)
     Sub.Position = UDim2.new(0, 28, 0, 52)
     Sub.BackgroundTransparency = 1
-    Sub.Text = "Masukkan key untuk lanjut"
+    Sub.Text = "Masukin key dulu anjing!"
     Sub.Font = Enum.Font.Gotham
     Sub.TextSize = 14
     Sub.TextColor3 = Color3.fromRGB(160, 160, 168)
@@ -231,7 +231,7 @@ local function ShowKeyUI(onSuccess)
     NoteText.Size = UDim2.new(0, 260, 0, 60)
     NoteText.Position = UDim2.new(0, 330, 0, 132)
     NoteText.BackgroundTransparency = 1
-    NoteText.Text = "Minta key ke pemilik script\n(Notceenn)"
+    NoteText.Text = "Minta key ke pemilik script\n( Discord @cenntzy)"
     NoteText.Font = Enum.Font.Gotham
     NoteText.TextSize = 14
     NoteText.TextColor3 = Color3.fromRGB(220, 220, 224)
@@ -277,7 +277,7 @@ local function ShowKeyUI(onSuccess)
         end
 
         if input == validKey then
-            Status.Text = "✅ Key Benar! Selamat datang..."
+            Status.Text = "✅ Key Benar! Selamat datang Anak Anjing"
             Status.TextColor3 = Color3.fromRGB(90, 255, 130)
             TweenService:Create(Glow, TweenInfo.new(0.3), { Color = Color3.fromRGB(90, 255, 130), Transparency = 0 }):Play()
 
@@ -299,7 +299,7 @@ local function ShowKeyUI(onSuccess)
 
             onSuccess()
         else
-            Status.Text = "❌ Key Salah! Coba lagi."
+            Status.Text = "❌Key Salah tolol 😹"
             Status.TextColor3 = Color3.fromRGB(255, 90, 90)
             TweenService:Create(Glow, TweenInfo.new(0.15), { Color = Color3.fromRGB(255, 70, 70), Transparency = 0 }):Play()
             ShakeCard()
