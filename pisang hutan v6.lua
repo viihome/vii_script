@@ -1,7 +1,7 @@
 -- ================================================
 --   🍌 Hutan Pisang - By Notceenn
 --   Pisang menyerang (terbang) tanpa batas jarak
---   🔑 Key System Manual (dengan notifikasi jelas)
+--   🔑 Key System Manual (satu window, anti-error)
 -- ================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -10,87 +10,86 @@ local Players     = game:GetService("Players")
 local RunService  = game:GetService("RunService")
 local LocalPlayer = Players.LocalPlayer
 
+local KEY_URL = "https://raw.githubusercontent.com/notceenn/cenn_script/refs/heads/main/key.txt"
+
 -- ================================================
--- 🔑 KEY VERIFICATION (Manual, dengan notif jelas)
+-- WINDOW UTAMA (dibuat SEKALI SAJA di awal)
 -- ================================================
 
-local KEY_URL = "https://raw.githubusercontent.com/notceenn/cenn_script/refs/heads/main/key.txt"
+local Window = Rayfield:CreateWindow({
+    Name            = "Hutan Pisang - By Notceenn",
+    LoadingTitle    = "Hutan Pisang",
+    LoadingSubtitle = "By Notceenn",
+    Theme           = "Default",
+    ConfigurationSaving = { Enabled = false },
+})
+
+local KeyTab = Window:CreateTab("🔑 Masukkan Key", 4483362458)
+
+KeyTab:CreateParagraph({
+    Title   = "Key System",
+    Content = "Masukkan key untuk membuka Hutan Pisang.\nMinta key ke pemilik script (Notceenn).",
+})
+
+local keyAccepted = false
 
 local function GetRemoteKey()
     local success, result = pcall(function()
         return game:HttpGet(KEY_URL)
     end)
     if success and result then
-        -- Bersihkan whitespace/enter yang mungkin ikut kebawa
         return (result:gsub("^%s+", ""):gsub("%s+$", ""))
     end
     return nil
 end
 
-local function ShowKeyPrompt()
-    local validKey = GetRemoteKey()
+KeyTab:CreateInput({
+    Name                     = "Key",
+    PlaceholderText          = "Ketik key di sini lalu tekan Enter...",
+    RemoveTextAfterFocusLost = false,
+    Flag                     = "KeyInputBox",
+    Callback                 = function(input)
+        if keyAccepted then return end -- sudah pernah benar, gak perlu proses lagi
 
-    if not validKey then
-        Rayfield:Notify({
-            Title    = "⚠️ Error",
-            Content  = "Gagal mengambil data key. Cek koneksi internet kamu.",
-            Duration = 5,
-        })
-        return
-    end
+        local cleanInput = input:gsub("^%s+", ""):gsub("%s+$", "")
+        if cleanInput == "" then return end
 
-    local KeyWindow = Rayfield:CreateWindow({
-        Name            = "Hutan Pisang - Verifikasi",
-        LoadingTitle    = "Hutan Pisang",
-        LoadingSubtitle = "Verifikasi Key",
-        ConfigurationSaving = { Enabled = false },
-    })
+        local validKey = GetRemoteKey()
 
-    local KeyTab = KeyWindow:CreateTab("🔑 Masukkan Key", 4483362458)
+        if not validKey then
+            Rayfield:Notify({
+                Title    = "⚠️ Error",
+                Content  = "Gagal mengambil data key. Cek koneksi internet kamu.",
+                Duration = 4,
+            })
+            return
+        end
 
-    KeyTab:CreateParagraph({
-        Title   = "Key System",
-        Content = "Masukkan key untuk membuka Hutan Pisang.\nMinta key ke pemilik script (Notceenn).",
-    })
-
-    KeyTab:CreateInput({
-        Name                     = "Key",
-        PlaceholderText          = "Ketik key di sini lalu tekan Enter...",
-        RemoveTextAfterFocusLost = false,
-        Flag                     = "KeyInputBox",
-        Callback                 = function(input)
-            local cleanInput = input:gsub("^%s+", ""):gsub("%s+$", "")
-
-            if cleanInput == "" then
-                return
-            end
-
-            if cleanInput == validKey then
-                Rayfield:Notify({
-                    Title    = "✅ Key Benar!",
-                    Content  = "Selamat datang di Hutan Pisang!",
-                    Duration = 3,
-                })
-                task.wait(1)
-                KeyWindow:Destroy()
-                task.wait(0.3)
-                LoadMainScript()
-            else
-                Rayfield:Notify({
-                    Title    = "❌ Key Salah!",
-                    Content  = "Key yang kamu masukkan tidak valid. Coba lagi.",
-                    Duration = 4,
-                })
-            end
-        end,
-    })
-end
+        if cleanInput == validKey then
+            keyAccepted = true
+            Rayfield:Notify({
+                Title    = "✅ Key Benar!",
+                Content  = "Selamat datang di Hutan Pisang!",
+                Duration = 4,
+            })
+            task.wait(0.5)
+            BuildMainUI()
+        else
+            Rayfield:Notify({
+                Title    = "❌ Key Salah!",
+                Content  = "Key yang kamu masukkan tidak valid. Coba lagi.",
+                Duration = 4,
+            })
+        end
+    end,
+})
 
 -- ================================================
--- 🍌 MAIN SCRIPT (baru jalan setelah key benar)
+-- 🍌 MAIN SCRIPT (tab Main/Settings baru dibuat
+--    setelah key benar, di window yang SAMA)
 -- ================================================
 
-function LoadMainScript()
+function BuildMainUI()
 
     local Config       = { Speed = 800 }
     local targetPlayer  = nil
@@ -311,16 +310,8 @@ function LoadMainScript()
     end
 
     -- ================================================
-    -- UI
+    -- UI (tab baru ditambahkan ke Window yang sudah ada)
     -- ================================================
-
-    local Window = Rayfield:CreateWindow({
-        Name            = "Hutan Pisang - By Notceenn",
-        LoadingTitle    = "Hutan Pisang",
-        LoadingSubtitle = "By Notceenn",
-        Theme           = "Default",
-        ConfigurationSaving = { Enabled = false },
-    })
 
     local MainTab = Window:CreateTab("🍌 Main", 4483362458)
     local SetTab  = Window:CreateTab("⚙️ Settings", 4483362458)
@@ -445,15 +436,4 @@ function LoadMainScript()
         task.wait(0.5) RefreshDrop("")
     end)
 
-    Rayfield:Notify({
-        Title   = "Hutan Pisang",
-        Content = "By Notceenn | Siap! (Brutal Attack Mode)",
-        Duration = 3,
-    })
-
 end
-
--- ================================================
--- MULAI DARI SINI: Tampilkan prompt key dulu
--- ================================================
-ShowKeyPrompt()
