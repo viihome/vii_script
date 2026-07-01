@@ -1,6 +1,7 @@
 -- ================================================
 --   🍌 Hutan Pisang - By Notceenn
 --   Pisang menyerang (terbang) tanpa batas jarak
+--   🔑 Dengan Key System (remote controlled)
 -- ================================================
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
@@ -233,7 +234,7 @@ local function StopChase()
 end
 
 -- ================================================
--- UI
+-- UI (dengan Key System)
 -- ================================================
 
 local Window = Rayfield:CreateWindow({
@@ -242,7 +243,19 @@ local Window = Rayfield:CreateWindow({
     LoadingSubtitle = "By Notceenn",
     Theme           = "Default",
     ConfigurationSaving = { Enabled = false },
-    KeySystem       = false,
+
+    KeySystem = true, -- Aktifkan key system
+    KeySettings = {
+        Title           = "Hutan Pisang - Key System",
+        Subtitle        = "Masukkan key untuk lanjut",
+        Note            = "Minta key ke pemilik script (Notceenn)",
+        FileName        = "CennKey_HutanPisang", -- nama file simpan key lokal user
+        SaveKey         = true, -- key tersimpan, gak perlu input ulang tiap join
+        GrabKeyFromSite = true, -- ambil key dari link GitHub (bisa kamu ubah kapan saja)
+        Key = {
+            "https://raw.githubusercontent.com/notceenn/cenn_script/refs/heads/main/key.txt"
+        }
+    },
 })
 
 local MainTab = Window:CreateTab("🍌 Main", 4483362458)
