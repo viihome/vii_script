@@ -1,8 +1,7 @@
 -- ================================================
 --   🍌 Banana Peel - Hutan @cenntzy (V1)
---   UI: WindUI (Footagesus) + Key Gate Terpisah
---   Pisang SELALU nempel 0 studs di HumanoidRootPart
---   + Optimasi performa + Tab Perlindungan
+--   UI: Rayfield + Key Gate Terpisah
+--   Fungsi serangan DIKEMBALIKAN seperti versi yang berhasil
 -- ================================================
 
 local Players      = game:GetService("Players")
@@ -215,20 +214,7 @@ end
 
 local function MainScript()
 
-    local successLib, Library = pcall(function()
-        return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
-    end)
-
-    if not successLib or not Library then
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title    = "Gagal Load UI",
-                Text     = "WindUI gagal dimuat di executor ini. Coba executor lain.",
-                Duration = 6
-            })
-        end)
-        return
-    end
+    local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
     local Config = {
         Speed      = 800,
@@ -311,10 +297,6 @@ local function MainScript()
         pcall(ClaimIfMine, obj)
     end
 
-    -- OPTIMASI: FindBananas sekarang baca dari tabel myBananas langsung
-    -- (yang sudah di-update via event ChildAdded/DescendantAdded), BUKAN
-    -- scan ulang seluruh workspace:GetChildren() tiap frame. Lebih ringan,
-    -- dan sekalian bersih-bersih entry yang sudah tidak valid.
     local function FindBananas()
         local list = {}
         for obj, _ in pairs(myBananas) do
@@ -335,7 +317,7 @@ local function MainScript()
 
     local victimHighlight   = nil
     local victimBillboard   = nil
-    local currentVisualFor  = nil -- siapa pemilik highlight/billboard saat ini
+    local currentVisualFor  = nil
 
     local function ClearVictimVisuals()
         pcall(function() if victimHighlight then victimHighlight:Destroy() end end)
@@ -381,8 +363,6 @@ local function MainScript()
     local function UpdateVictimVisuals()
         if not targetPlayer or not targetPlayer.Character then return end
 
-        -- Pastikan highlight/billboard SELALU nempel ke targetPlayer yang
-        -- sedang aktif -- kalau beda (misal ke-reset), langsung setup ulang
         if currentVisualFor ~= targetPlayer then
             SetupVictimVisuals(targetPlayer)
             return
@@ -405,14 +385,11 @@ local function MainScript()
     end
 
     -- ================================================
-    -- 🔥 GLOBAL ATTACK
-    -- Pisang SELALU di posisi PERSIS HumanoidRootPart (0 studs),
-    -- diupdate LANGSUNG tiap frame supaya gak pernah miss.
-    -- OPTIMASI: BodyVelocity/BodyAngularVelocity di-reuse (bukan
-    -- create+destroy tiap frame) supaya lebih ringan.
+    -- 🔥 GLOBAL ATTACK -- LOGIKA DIKEMBALIKAN seperti versi
+    -- yang berhasil melempar korban (sebelum "optimasi" kemarin)
     -- ================================================
 
-    local victimMovers = {} -- [targetRoot] = { bv = BodyVelocity, bav = BodyAngularVelocity }
+    local victimMovers = {}
 
     local function GetOrCreateMovers(targetRoot)
         local movers = victimMovers[targetRoot]
@@ -420,8 +397,6 @@ local function MainScript()
             return movers
         end
 
-        -- Bersihkan BodyMover asing (dari game/orang lain) SEKALI aja
-        -- pas target ini baru pertama kali dipegang, bukan tiap frame.
         for _, child in ipairs(targetRoot:GetChildren()) do
             if child:IsA("BodyMover") then
                 pcall(function() child:Destroy() end)
@@ -498,8 +473,6 @@ local function MainScript()
                 targetRoot.AssemblyLinearVelocity  = rigVelocity + upBlast
                 targetRoot.AssemblyAngularVelocity = rigAngular + EXTREME
 
-                -- Reuse instance, tinggal update value-nya aja (jauh lebih ringan
-                -- daripada Instance.new() + Destroy() tiap frame)
                 movers.bv.Velocity = upBlast
                 movers.bav.AngularVelocity = EXTREME
 
@@ -515,9 +488,9 @@ local function MainScript()
         end)
 
         pcall(function()
-            Library:Notify({
+            Rayfield:Notify({
                 Title    = "🍌 GLOBAL ATTACK!",
-                Content  = "Pisang nempel 0 studs + Serangan SELALU KE ATAS!",
+                Content  = "Serangan aktif!",
                 Duration = 3,
             })
         end)
@@ -529,7 +502,7 @@ local function MainScript()
         ClearVictimVisuals()
         ClearAllMovers()
         pcall(function()
-            Library:Notify({ Title="🍌 Dimatikan", Content="", Duration=2 })
+            Rayfield:Notify({ Title="🍌 Dimatikan", Content="", Duration=2 })
         end)
     end
 
@@ -580,7 +553,6 @@ local function MainScript()
         local root = char:WaitForChild("HumanoidRootPart", 5)
         if not humanoid or not root then return end
 
-        -- Anti Ragdoll: kalau state berubah jadi Ragdoll, langsung paksa bangun lagi
         pcall(function()
             humanoid.StateChanged:Connect(function(_, new)
                 if Protection.AntiRagdoll and new == Enum.HumanoidStateType.Ragdoll then
@@ -591,7 +563,6 @@ local function MainScript()
             end)
         end)
 
-        -- Anti Sit: kalau ada yang maksa duduk, langsung dilepas lagi
         pcall(function()
             humanoid:GetPropertyChangedSignal("Sit"):Connect(function()
                 if Protection.AntiSit and humanoid.Sit then
@@ -603,16 +574,40 @@ local function MainScript()
             end)
         end)
 
-        -- Anti Fling: hancurkan BodyMover asing yang ditempel ke root kita
+        local DANGEROUS_CLASSES = {
+            BodyVelocity = true,
+            BodyAngularVelocity = true,
+            BodyForce = true,
+            BodyThrust = true,
+            BodyPosition = true,
+            BodyGyro = true,
+            LinearVelocity = true,
+            AngularVelocity = true,
+            VectorForce = true,
+            AlignPosition = true,
+            AlignOrientation = true,
+            Torque = true,
+        }
+
+        local function DestroyIfDangerous(child)
+            if not Protection.AntiFling then return end
+            local ok, className = pcall(function() return child.ClassName end)
+            if ok and DANGEROUS_CLASSES[className] then
+                task.defer(function()
+                    pcall(function() child:Destroy() end)
+                end)
+            end
+        end
+
         pcall(function()
-            root.ChildAdded:Connect(function(child)
-                if Protection.AntiFling and child:IsA("BodyMover") then
-                    task.defer(function()
-                        pcall(function() child:Destroy() end)
-                    end)
-                end
-            end)
+            root.ChildAdded:Connect(DestroyIfDangerous)
         end)
+        pcall(function()
+            char.DescendantAdded:Connect(DestroyIfDangerous)
+        end)
+        for _, child in ipairs(char:GetDescendants()) do
+            DestroyIfDangerous(child)
+        end
     end
 
     pcall(function()
@@ -625,13 +620,22 @@ local function MainScript()
         end)
     end)
 
-    -- Anti Fling lapis kedua: batasi kecepatan gerak abnormal tiap frame
     pcall(function()
+        local lastSafePos = nil
+        local lastCheckTime = tick()
+
         RunService.Heartbeat:Connect(function()
-            if not Protection.AntiFling then return end
+            if not Protection.AntiFling then
+                lastSafePos = nil
+                return
+            end
             local char = LocalPlayer.Character
             local root = char and char:FindFirstChild("HumanoidRootPart")
             if not root then return end
+
+            local now = tick()
+            local dt = math.max(now - lastCheckTime, 1/240)
+            lastCheckTime = now
 
             local vel = root.AssemblyLinearVelocity
             if vel.Magnitude > 300 then
@@ -642,35 +646,42 @@ local function MainScript()
             if avel.Magnitude > 50 then
                 root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
             end
+
+            if lastSafePos then
+                local delta = (root.Position - lastSafePos).Magnitude
+                local maxPlausible = 250 * dt
+                if delta > maxPlausible and delta > 15 then
+                    pcall(function()
+                        root.CFrame = CFrame.new(lastSafePos)
+                        root.AssemblyLinearVelocity = Vector3.new(0, 0, 0)
+                        root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+                    end)
+                else
+                    lastSafePos = root.Position
+                end
+            else
+                lastSafePos = root.Position
+            end
         end)
     end)
 
     -- ================================================
-    -- UI (WindUI)
+    -- UI (Rayfield)
     -- ================================================
 
-    local Window = Library:CreateWindow({
-        Title    = "Banana Peel - Hutan @cenntzy",
-        Folder   = "BananaPeelHutan",
-        Size     = UDim2.new(0, 560, 0, 460),
+    local Window = Rayfield:CreateWindow({
+        Name            = "Banana Peel - Hutan @cenntzy",
+        LoadingTitle    = "Banana Peel",
+        LoadingSubtitle = "Hutan @cenntzy",
+        Theme           = "Default",
+        ConfigurationSaving = { Enabled = false },
+        KeySystem       = false,
     })
 
-    pcall(function()
-        Window:SetToggleKey(Enum.KeyCode.RightShift)
-    end)
-
-    local MainTab  = Window:Tab({ Title = "Main" })
-    local SetTab   = Window:Tab({ Title = "Settings" })
-    local ProtTab  = Window:Tab({ Title = "Perlindungan" })
-    local DevTab   = Window:Tab({ Title = "Developer" })
-
-    -- Paksa buka tab Main duluan setelah key benar, biar gak blank/kosong
-    -- dan gak perlu klik manual. Dicoba beberapa nama method sekaligus
-    -- biar tetap kompatibel walau ada perbedaan versi WindUI.
-    pcall(function() Window:SelectTab(MainTab) end)
-    pcall(function() Window:SetTab(MainTab) end)
-    pcall(function() MainTab:Select() end)
-    pcall(function() MainTab:Show() end)
+    local MainTab = Window:CreateTab("🍌 Main", 4483362458)
+    local SetTab  = Window:CreateTab("⚙️ Settings", 4483362458)
+    local ProtTab = Window:CreateTab("🛡️ Perlindungan", 4483362458)
+    local DevTab  = Window:CreateTab("👨‍💻 Developer", 4483362458)
 
     -- ================================================
     -- 🍌 TAB MAIN
@@ -678,15 +689,14 @@ local function MainScript()
 
     local playerDropdown
     local lastNotifiedTarget = nil
-    local lastSearchCallTime = 0
     local selectionMode = nil -- "search" atau "dropdown" -- saling eksklusif
 
     local function RefreshDrop(kw)
-        local newOptions = FilterPlayers(kw or "")
-        if not playerDropdown then return end
-        pcall(function() playerDropdown:Refresh(newOptions) end)
-        pcall(function() playerDropdown:SetValues(newOptions) end)
-        pcall(function() playerDropdown:Reload(newOptions) end)
+        pcall(function()
+            if playerDropdown then
+                playerDropdown:Refresh(FilterPlayers(kw or ""), true)
+            end
+        end)
     end
 
     local function ResetTargetSelection()
@@ -695,35 +705,31 @@ local function MainScript()
         selectionMode = nil
         ClearVictimVisuals()
         pcall(function()
-            Library:Notify({ Title = "🔄 Target Direset", Content = "Silakan pilih target baru.", Duration = 2 })
+            Rayfield:Notify({ Title = "🔄 Target Direset", Content = "Silakan pilih target baru.", Duration = 2 })
         end)
     end
 
-    MainTab:Paragraph({ Title = "Target", Desc = "Cari dan pilih target untuk diserang. Kalau sudah pilih dari salah satu cara, cara satunya otomatis nonaktif sampai kamu reset." })
+    MainTab:CreateSection("Target")
 
-    MainTab:Input({
-        Title       = "Cari Nama / Nickname",
-        Value       = "",
-        Placeholder = "Ketik 3+ huruf → auto terpilih!",
-        Flag        = "SearchBox",
-        Callback    = function(input)
-            -- Kalau sudah pilih via Dropdown, cari nama/nickname dinonaktifkan
+    MainTab:CreateInput({
+        Name                     = "Cari Nama / Nickname",
+        PlaceholderText          = "Ketik 3+ huruf → auto terpilih!",
+        RemoveTextAfterFocusLost = false,
+        Flag                     = "SearchBox",
+        Callback                 = function(input)
             if selectionMode == "dropdown" then return end
-
-            local now = tick()
-            if now - lastSearchCallTime < 0.3 then return end
-            lastSearchCallTime = now
 
             pcall(function() RefreshDrop(input) end)
             local found = AutoSelect(input)
             if found and found ~= targetPlayer then
                 targetPlayer = found
                 selectionMode = "search"
+                -- ESP HANYA muncul kalau chaser sedang aktif
                 if active then SetupVictimVisuals(targetPlayer) end
                 if found ~= lastNotifiedTarget then
                     lastNotifiedTarget = found
                     pcall(function()
-                        Library:Notify({ Title = "✅ "..found.DisplayName, Content = "Username: "..found.Name, Duration = 2 })
+                        Rayfield:Notify({ Title = "✅ "..found.DisplayName, Content = "Username: "..found.Name, Duration = 2 })
                     end)
                 end
             elseif #input == 0 then
@@ -733,16 +739,16 @@ local function MainScript()
         end,
     })
 
-    playerDropdown = MainTab:Dropdown({
-        Title    = "Atau Pilih dari List",
-        Values   = FilterPlayers(""),
-        Value    = "Pilih player...",
-        Flag     = "PlayerSelect",
-        Callback = function(sel)
-            -- Kalau sudah pilih via Search, dropdown dinonaktifkan
+    playerDropdown = MainTab:CreateDropdown({
+        Name            = "Atau Pilih dari List",
+        Options         = FilterPlayers(""),
+        CurrentOption   = {"Pilih player..."},
+        MultipleOptions = false,
+        Flag            = "PlayerSelect",
+        Callback        = function(sel)
             if selectionMode == "search" then return end
 
-            local str = type(sel) == "table" and (sel.Title or sel[1]) or sel
+            local str = type(sel) == "table" and sel[1] or sel
             local plr = ParsePlayer(str)
             if plr then
                 targetPlayer = plr
@@ -751,35 +757,34 @@ local function MainScript()
                 if plr ~= lastNotifiedTarget then
                     lastNotifiedTarget = plr
                     pcall(function()
-                        Library:Notify({ Title = "🎯 "..plr.DisplayName, Content = "Username: "..plr.Name, Duration = 2 })
+                        Rayfield:Notify({ Title = "🎯 "..plr.DisplayName, Content = "Username: "..plr.Name, Duration = 2 })
                     end)
                 end
             end
         end,
     })
 
-    MainTab:Button({
-        Title    = "🔄 Refresh List",
-        Callback = function() RefreshDrop("") end
+    MainTab:CreateButton({
+        Name     = "🔄 Refresh List",
+        Callback = function() RefreshDrop("") end,
     })
 
-    MainTab:Button({
-        Title    = "❌ Reset Target",
-        Callback = ResetTargetSelection
+    MainTab:CreateButton({
+        Name     = "❌ Reset Target",
+        Callback = ResetTargetSelection,
     })
 
-    MainTab:Paragraph({ Title = "Control", Desc = "Aktifkan serangan pisang." })
+    MainTab:CreateDivider()
+    MainTab:CreateSection("Control")
 
-    MainTab:Toggle({
-        Title    = "🍌 Enable Banana Chaser",
-        Value    = false,
-        Flag     = "EnableToggle",
-        Callback = function(val)
+    MainTab:CreateToggle({
+        Name         = "🍌 Enable Banana Chaser",
+        CurrentValue = false,
+        Flag         = "EnableToggle",
+        Callback     = function(val)
             if val then
                 if not targetPlayer then
-                    pcall(function()
-                        Library:Notify({ Title = "Pilih target dulu!", Content = "", Duration = 2 })
-                    end)
+                    Rayfield:Notify({ Title = "Pilih target dulu!", Duration = 2 })
                     return
                 end
                 StartChase()
@@ -789,114 +794,103 @@ local function MainScript()
         end,
     })
 
-    MainTab:Button({
-        Title    = "🎯 Lempar Banana Peel",
+    MainTab:CreateButton({
+        Name     = "🎯 Lempar Banana Peel",
         Callback = function()
             ThrowBanana()
-            pcall(function()
-                Library:Notify({ Title = "🍌", Content = "Pisang dilempar!", Duration = 2 })
-            end)
-        end
+            Rayfield:Notify({ Title = "🍌", Content = "Pisang dilempar!", Duration = 2 })
+        end,
     })
 
-    MainTab:Paragraph({
-        Title = "Cara Pakai",
-        Desc  = "1. Pilih target\n2. Enable & lempar pisang!\n3. Pisang otomatis nempel 0 studs di perut korban\n4. Serangan SELALU KE ATAS, gak akan miss walau korban lari/loncat! 🍌💀"
+    MainTab:CreateParagraph({
+        Title   = "Cara Pakai",
+        Content = "1. Pilih target\n2. Enable Banana Chaser (ESP baru muncul di sini)\n3. Lempar pisang!\n4. Pisang nempel di HumanoidRootPart & serangan ke atas full power 🍌💀",
     })
 
     -- ================================================
     -- ⚙️ TAB SETTINGS
     -- ================================================
 
-    SetTab:Paragraph({ Title = "Kecepatan Lempar", Desc = "Kecepatan pisang saat baru dilempar." })
-    SetTab:Slider({
-        Title    = "Speed Pisang",
-        Value    = { Min = 100, Max = 3000, Default = 800 },
-        Step     = 100,
-        Flag     = "BananaSpeed",
-        Callback = function(v) Config.Speed = v end
+    SetTab:CreateSection("Kecepatan & Kekuatan")
+
+    SetTab:CreateSlider({
+        Name         = "Speed Pisang",
+        Range        = {100, 3000},
+        Increment    = 100,
+        Suffix       = " speed",
+        CurrentValue = 800,
+        Flag         = "BananaSpeed",
+        Callback     = function(v) Config.Speed = v end,
     })
 
-    SetTab:Paragraph({ Title = "Kekuatan Dorongan", Desc = "Seberapa kuat korban terdorong ke atas saat kena pisang." })
-    SetTab:Slider({
-        Title    = "Blast Power (Ke Atas)",
-        Value    = { Min = 500000, Max = 5000000, Default = 2000000 },
-        Step     = 100000,
-        Flag     = "BlastPower",
-        Callback = function(v) Config.BlastPower = v end
+    SetTab:CreateSlider({
+        Name         = "Blast Power (Ke Atas)",
+        Range        = {500000, 5000000},
+        Increment    = 100000,
+        Suffix       = " power",
+        CurrentValue = 2000000,
+        Flag         = "BlastPower",
+        Callback     = function(v) Config.BlastPower = v end,
     })
 
-    SetTab:Paragraph({ Title = "Keybind UI", Desc = "Atur tombol untuk minimize/tampilkan kembali menu ini (khusus PC)." })
-    SetTab:Keybind({
-        Title    = "Toggle UI Key",
-        Value    = "RightShift",
-        Flag     = "ToggleUIKey",
-        Callback = function(v)
-            pcall(function()
-                Window:SetToggleKey(Enum.KeyCode[v])
-            end)
-            pcall(function()
-                Library:Notify({ Title = "⌨️ Keybind Diubah", Content = "Tombol toggle UI: "..tostring(v), Duration = 2 })
-            end)
-        end
+    SetTab:CreateParagraph({
+        Title   = "Panduan",
+        Content = "Blast Power makin tinggi = korban makin tinggi & jauh terpental.",
     })
 
     -- ================================================
     -- 🛡️ TAB PERLINDUNGAN
     -- ================================================
 
-    ProtTab:Paragraph({
-        Title = "Perlindungan Diri",
-        Desc  = "Kebal dari gangguan pemain lain -- fling, ragdoll paksa, dan duduk paksa."
+    ProtTab:CreateSection("Perlindungan Diri")
+    ProtTab:CreateParagraph({
+        Title   = "Info",
+        Content = "Kebal dari gangguan pemain lain -- fling, ragdoll paksa, dan duduk paksa.",
     })
 
-    ProtTab:Toggle({
-        Title    = "🛡️ Anti-Fling",
-        Value    = false,
-        Flag     = "AntiFlingToggle",
-        Callback = function(val)
+    ProtTab:CreateToggle({
+        Name         = "🛡️ Anti-Fling",
+        CurrentValue = false,
+        Flag         = "AntiFlingToggle",
+        Callback     = function(val)
             Protection.AntiFling = val
-            pcall(function()
-                Library:Notify({ Title = val and "🛡️ Anti-Fling ON" or "Anti-Fling OFF", Content = "", Duration = 2 })
-            end)
-        end
+            Rayfield:Notify({ Title = val and "🛡️ Anti-Fling ON" or "Anti-Fling OFF", Duration = 2 })
+        end,
     })
 
-    ProtTab:Toggle({
-        Title    = "🛡️ Anti-Ragdoll",
-        Value    = false,
-        Flag     = "AntiRagdollToggle",
-        Callback = function(val)
+    ProtTab:CreateToggle({
+        Name         = "🛡️ Anti-Ragdoll",
+        CurrentValue = false,
+        Flag         = "AntiRagdollToggle",
+        Callback     = function(val)
             Protection.AntiRagdoll = val
-            pcall(function()
-                Library:Notify({ Title = val and "🛡️ Anti-Ragdoll ON" or "Anti-Ragdoll OFF", Content = "", Duration = 2 })
-            end)
-        end
+            Rayfield:Notify({ Title = val and "🛡️ Anti-Ragdoll ON" or "Anti-Ragdoll OFF", Duration = 2 })
+        end,
     })
 
-    ProtTab:Toggle({
-        Title    = "🛡️ Anti-Sit",
-        Value    = false,
-        Flag     = "AntiSitToggle",
-        Callback = function(val)
+    ProtTab:CreateToggle({
+        Name         = "🛡️ Anti-Sit",
+        CurrentValue = false,
+        Flag         = "AntiSitToggle",
+        Callback     = function(val)
             Protection.AntiSit = val
-            pcall(function()
-                Library:Notify({ Title = val and "🛡️ Anti-Sit ON" or "Anti-Sit OFF", Content = "", Duration = 2 })
-            end)
-        end
+            Rayfield:Notify({ Title = val and "🛡️ Anti-Sit ON" or "Anti-Sit OFF", Duration = 2 })
+        end,
     })
 
     -- ================================================
     -- 👨‍💻 TAB DEVELOPER
     -- ================================================
 
-    DevTab:Paragraph({
-        Title = "Banana Peel - Hutan",
-        Desc  = "Dibuat oleh: @cenntzy\nDiscord: @cenntzy\n\nUntuk request key, bug report, atau saran fitur, hubungi langsung lewat Discord."
+    DevTab:CreateSection("Tentang Script")
+
+    DevTab:CreateParagraph({
+        Title   = "Banana Peel - Hutan",
+        Content = "Dibuat oleh: @cenntzy\nDiscord: @cenntzy\n\nUntuk request key, bug report, atau saran fitur, hubungi langsung lewat Discord.",
     })
 
-    DevTab:Button({
-        Title    = "📋 Copy Discord: @cenntzy",
+    DevTab:CreateButton({
+        Name     = "📋 Copy Discord: @cenntzy",
         Callback = function()
             local copied = false
             pcall(function()
@@ -905,38 +899,30 @@ local function MainScript()
                     copied = true
                 end
             end)
-            pcall(function()
-                if copied then
-                    Library:Notify({ Title = "📋 Disalin!", Content = "Discord @cenntzy sudah disalin ke clipboard.", Duration = 3 })
-                else
-                    Library:Notify({ Title = "Discord", Content = "@cenntzy (clipboard tidak didukung executor ini)", Duration = 5 })
-                end
-            end)
-        end
+            if copied then
+                Rayfield:Notify({ Title = "📋 Disalin!", Content = "Discord @cenntzy sudah disalin ke clipboard.", Duration = 3 })
+            else
+                Rayfield:Notify({ Title = "Discord", Content = "@cenntzy (clipboard tidak didukung executor ini)", Duration = 5 })
+            end
+        end,
     })
 
-    pcall(function()
-        Players.PlayerAdded:Connect(function() task.wait(0.5) RefreshDrop("") end)
-    end)
-    pcall(function()
-        Players.PlayerRemoving:Connect(function(plr)
-            if targetPlayer == plr then
-                targetPlayer = nil
-                selectionMode = nil
-                StopChase()
-            end
-            if lastNotifiedTarget == plr then lastNotifiedTarget = nil end
-            task.wait(0.5) RefreshDrop("")
-        end)
+    Players.PlayerAdded:Connect(function() task.wait(0.5) RefreshDrop("") end)
+    Players.PlayerRemoving:Connect(function(plr)
+        if targetPlayer == plr then
+            targetPlayer = nil
+            selectionMode = nil
+            StopChase()
+        end
+        if lastNotifiedTarget == plr then lastNotifiedTarget = nil end
+        task.wait(0.5) RefreshDrop("")
     end)
 
-    pcall(function()
-        Library:Notify({
-            Title    = "Banana Peel - Hutan",
-            Content  = "By @cenntzy | Pisang nempel 0 studs + Serangan Ke Atas!",
-            Duration = 3
-        })
-    end)
+    Rayfield:Notify({
+        Title    = "Banana Peel - Hutan",
+        Content  = "By @cenntzy | Siap digunakan!",
+        Duration = 3,
+    })
 end
 
 -- ================================================
