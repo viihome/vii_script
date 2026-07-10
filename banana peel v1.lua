@@ -1,7 +1,8 @@
 -- ================================================
---   🍌 Banana Peel - Hutan @cenntzy
---   UI: WindUI (Footagesus) + Key Gate Terpisah (SEBELUM menu muncul)
---   Key WAJIB dimasukkan setiap kali script dijalankan
+--   🍌 Banana Peel - Hutan @cenntzy (V1)
+--   UI: WindUI (Footagesus) + Key Gate Terpisah
+--   Pisang SELALU nempel 0 studs di HumanoidRootPart
+--   + Optimasi performa + Tab Perlindungan
 -- ================================================
 
 local Players      = game:GetService("Players")
@@ -25,8 +26,7 @@ local function GetRemoteKey()
 end
 
 -- ================================================
--- 🔑 KEY GATE (layar terpisah, muncul PALING AWAL,
--- SEBELUM menu WindUI dibuat sama sekali)
+-- 🔑 KEY GATE (layar terpisah, muncul PALING AWAL)
 -- ================================================
 
 local function ShowKeyGate(onSuccess)
@@ -179,7 +179,7 @@ local function ShowKeyGate(onSuccess)
         local validKey = GetRemoteKey()
 
         if not validKey then
-            Status.Text = "⚠️ Gagal ambil data key. Cek koneksi!"
+            Status.Text = "⚠️ Gagal mengambil data key. Cek koneksi!"
             Status.TextColor3 = Color3.fromRGB(255, 150, 60)
             processing = false
             return
@@ -215,8 +215,6 @@ end
 
 local function MainScript()
 
-    -- Load WindUI (dibungkus pcall biar kalau gagal di executor tertentu,
-    -- ada pemberitahuan jelas, bukan error mentah)
     local successLib, Library = pcall(function()
         return loadstring(game:HttpGet("https://raw.githubusercontent.com/Footagesus/WindUI/main/dist/main.lua"))()
     end)
@@ -233,28 +231,14 @@ local function MainScript()
     end
 
     local Config = {
-        Speed        = 800,
-        TargetPart   = "HumanoidRootPart",
-        Tracer       = false
+        Speed      = 800,
+        BlastPower = 2000000,
     }
     local targetPlayer  = nil
     local active        = false
     local conn          = nil
     local myBananas     = {}
     local lastThrowTime = 0
-
-    local tracerBeam = nil
-    local attach0    = nil
-    local attach1    = nil
-
-    local bodyPartsList = {
-        "Head","UpperTorso","LowerTorso","Torso",
-        "LeftUpperArm","LeftLowerArm","LeftHand",
-        "RightUpperArm","RightLowerArm","RightHand",
-        "LeftUpperLeg","LeftLowerLeg","LeftFoot",
-        "RightUpperLeg","RightLowerLeg","RightFoot",
-        "HumanoidRootPart"
-    }
 
     -- ================================================
     -- UTILITY
@@ -327,13 +311,19 @@ local function MainScript()
         pcall(ClaimIfMine, obj)
     end
 
+    -- OPTIMASI: FindBananas sekarang baca dari tabel myBananas langsung
+    -- (yang sudah di-update via event ChildAdded/DescendantAdded), BUKAN
+    -- scan ulang seluruh workspace:GetChildren() tiap frame. Lebih ringan,
+    -- dan sekalian bersih-bersih entry yang sudah tidak valid.
     local function FindBananas()
         local list = {}
-        for _, obj in ipairs(workspace:GetChildren()) do
-            if obj.Name == "Handle" and obj:IsA("BasePart") and myBananas[obj] then
+        for obj, _ in pairs(myBananas) do
+            if obj and obj.Parent and obj:IsA("BasePart") then
                 if not (LocalPlayer.Character and obj:IsDescendantOf(LocalPlayer.Character)) then
                     table.insert(list, obj)
                 end
+            else
+                myBananas[obj] = nil
             end
         end
         return list
@@ -345,11 +335,12 @@ local function MainScript()
 
     local victimHighlight   = nil
     local victimBillboard   = nil
+    local currentVisualFor  = nil -- siapa pemilik highlight/billboard saat ini
 
     local function ClearVictimVisuals()
         pcall(function() if victimHighlight then victimHighlight:Destroy() end end)
         pcall(function() if victimBillboard then victimBillboard:Destroy() end end)
-        victimHighlight, victimBillboard = nil, nil
+        victimHighlight, victimBillboard, currentVisualFor = nil, nil, nil
     end
 
     local function SetupVictimVisuals(plr)
@@ -358,6 +349,8 @@ local function MainScript()
         local char = plr.Character
         local root = char:FindFirstChild("HumanoidRootPart")
         if not root then return end
+
+        currentVisualFor = plr
 
         victimHighlight = Instance.new("Highlight")
         victimHighlight.FillColor = Color3.fromRGB(180, 40, 40)
@@ -387,6 +380,14 @@ local function MainScript()
 
     local function UpdateVictimVisuals()
         if not targetPlayer or not targetPlayer.Character then return end
+
+        -- Pastikan highlight/billboard SELALU nempel ke targetPlayer yang
+        -- sedang aktif -- kalau beda (misal ke-reset), langsung setup ulang
+        if currentVisualFor ~= targetPlayer then
+            SetupVictimVisuals(targetPlayer)
+            return
+        end
+
         local root = targetPlayer.Character:FindFirstChild("HumanoidRootPart")
         local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
         if not root or not myRoot then return end
@@ -404,49 +405,58 @@ local function MainScript()
     end
 
     -- ================================================
-    -- TRACER LINE
+    -- 🔥 GLOBAL ATTACK
+    -- Pisang SELALU di posisi PERSIS HumanoidRootPart (0 studs),
+    -- diupdate LANGSUNG tiap frame supaya gak pernah miss.
+    -- OPTIMASI: BodyVelocity/BodyAngularVelocity di-reuse (bukan
+    -- create+destroy tiap frame) supaya lebih ringan.
     -- ================================================
 
-    local function CreateTracer()
-        if tracerBeam then return end
-        pcall(function()
-            local beam = Instance.new("Beam")
-            beam.Name = "BananaTracer"
-            beam.Color = ColorSequence.new(Color3.fromRGB(255,255,0))
-            beam.Width0 = 0.15
-            beam.Width1 = 0.15
-            beam.FaceCamera = true
-            beam.Parent = workspace
+    local victimMovers = {} -- [targetRoot] = { bv = BodyVelocity, bav = BodyAngularVelocity }
 
-            attach0 = Instance.new("Attachment")
-            attach0.Parent = workspace.Terrain
-            attach1 = Instance.new("Attachment")
-            attach1.Parent = workspace.Terrain
+    local function GetOrCreateMovers(targetRoot)
+        local movers = victimMovers[targetRoot]
+        if movers and movers.bv and movers.bv.Parent and movers.bav and movers.bav.Parent then
+            return movers
+        end
 
-            beam.Attachment0 = attach0
-            beam.Attachment1 = attach1
-            tracerBeam = beam
-        end)
+        -- Bersihkan BodyMover asing (dari game/orang lain) SEKALI aja
+        -- pas target ini baru pertama kali dipegang, bukan tiap frame.
+        for _, child in ipairs(targetRoot:GetChildren()) do
+            if child:IsA("BodyMover") then
+                pcall(function() child:Destroy() end)
+            end
+        end
+
+        local bv = Instance.new("BodyVelocity")
+        bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+        bv.Velocity = Vector3.new(0, 0, 0)
+        bv.Parent = targetRoot
+
+        local bav = Instance.new("BodyAngularVelocity")
+        bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
+        bav.AngularVelocity = Vector3.new(0, 0, 0)
+        bav.Parent = targetRoot
+
+        movers = { bv = bv, bav = bav }
+        victimMovers[targetRoot] = movers
+        return movers
     end
 
-    local function DestroyTracer()
-        pcall(function() if tracerBeam then tracerBeam:Destroy() end end)
-        pcall(function() if attach0 then attach0:Destroy() end end)
-        pcall(function() if attach1 then attach1:Destroy() end end)
-        tracerBeam, attach0, attach1 = nil, nil, nil
+    local function ClearAllMovers()
+        for _, movers in pairs(victimMovers) do
+            pcall(function() if movers.bv then movers.bv:Destroy() end end)
+            pcall(function() if movers.bav then movers.bav:Destroy() end end)
+        end
+        victimMovers = {}
     end
-
-    -- ================================================
-    -- 🔥 GLOBAL ATTACK (Prediksi Lari/Loncat + Serangan Ke Atas)
-    -- ================================================
 
     local function StartChase()
         if conn then conn:Disconnect() end
         if targetPlayer == LocalPlayer then return end
         active = true
         SetupVictimVisuals(targetPlayer)
-
-        if Config.Tracer then CreateTracer() end
+        ClearAllMovers()
 
         conn = RunService.Heartbeat:Connect(function(dt)
             if not active then return end
@@ -458,38 +468,20 @@ local function MainScript()
             local humanoid   = character:FindFirstChildOfClass("Humanoid")
             if not targetRoot then return end
 
-            local targetPart = character:FindFirstChild(Config.TargetPart)
-            if not targetPart or not targetPart:IsA("BasePart") then
-                targetPart = targetRoot
-            end
-
-            for obj, _ in pairs(myBananas) do
-                if not obj or not obj.Parent then myBananas[obj] = nil end
-            end
-
             local EXTREME = Vector3.new(999999, 999999, 999999)
+            local upBlast = Vector3.new(0, Config.BlastPower, 0)
 
-            local vel = targetPart.AssemblyLinearVelocity
-            local gravity = workspace.Gravity
-            local predictTime = 0.15
-            local predictedPos = targetPart.Position + vel * predictTime + Vector3.new(0, -0.5 * gravity * predictTime^2, 0)
+            local movers = GetOrCreateMovers(targetRoot)
 
             for _, banana in ipairs(FindBananas()) do
                 if not banana or not banana.Parent then continue end
 
-                if tracerBeam and attach0 and attach1 then
-                    pcall(function()
-                        attach0.Parent = banana
-                        attach1.Parent = targetPart
-                    end)
-                end
-
                 pcall(function()
-                    banana.CFrame = CFrame.new(predictedPos)
+                    banana.CFrame = targetRoot.CFrame
                 end)
                 banana.Anchored = false
                 banana.CanCollide = false
-                banana.AssemblyLinearVelocity = EXTREME
+                banana.AssemblyLinearVelocity  = EXTREME
                 banana.AssemblyAngularVelocity = EXTREME
 
                 if humanoid then
@@ -500,30 +492,20 @@ local function MainScript()
                     humanoid.JumpPower = 0
                 end
 
-                for _, child in ipairs(targetRoot:GetChildren()) do
-                    if child:IsA("BodyMover") then child:Destroy() end
-                end
-
                 local rigVelocity = targetRoot.AssemblyLinearVelocity
                 local rigAngular = targetRoot.AssemblyAngularVelocity
-                local upBlast = Vector3.new(0, 999999, 0)
 
-                targetRoot.AssemblyLinearVelocity = rigVelocity + upBlast
+                targetRoot.AssemblyLinearVelocity  = rigVelocity + upBlast
                 targetRoot.AssemblyAngularVelocity = rigAngular + EXTREME
 
-                local bv = Instance.new("BodyVelocity")
-                bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
-                bv.Velocity = Vector3.new(0, 999999, 0)
-                bv.Parent = targetRoot
-
-                local bav = Instance.new("BodyAngularVelocity")
-                bav.MaxTorque = Vector3.new(math.huge, math.huge, math.huge)
-                bav.AngularVelocity = EXTREME
-                bav.Parent = targetRoot
+                -- Reuse instance, tinggal update value-nya aja (jauh lebih ringan
+                -- daripada Instance.new() + Destroy() tiap frame)
+                movers.bv.Velocity = upBlast
+                movers.bav.AngularVelocity = EXTREME
 
                 for _, part in ipairs(character:GetChildren()) do
                     if part:IsA("BasePart") and part ~= targetRoot then
-                        part.AssemblyLinearVelocity = EXTREME
+                        part.AssemblyLinearVelocity  = EXTREME
                         part.AssemblyAngularVelocity = EXTREME
                     end
                 end
@@ -532,19 +514,23 @@ local function MainScript()
             UpdateVictimVisuals()
         end)
 
-        Library:Notify({
-            Title    = "🍌 GLOBAL ATTACK!",
-            Content  = "PREDIKSI LARI/LONCAT + Serangan SELALU KE ATAS!",
-            Duration = 3,
-        })
+        pcall(function()
+            Library:Notify({
+                Title    = "🍌 GLOBAL ATTACK!",
+                Content  = "Pisang nempel 0 studs + Serangan SELALU KE ATAS!",
+                Duration = 3,
+            })
+        end)
     end
 
     local function StopChase()
         active = false
         if conn then conn:Disconnect() conn = nil end
         ClearVictimVisuals()
-        DestroyTracer()
-        Library:Notify({ Title="🍌 Dimatikan", Content="", Duration=2 })
+        ClearAllMovers()
+        pcall(function()
+            Library:Notify({ Title="🍌 Dimatikan", Content="", Duration=2 })
+        end)
     end
 
     -- ================================================
@@ -580,7 +566,87 @@ local function MainScript()
     end
 
     -- ================================================
-    -- UI (WindUI) - TANPA custom theme, pakai default
+    -- 🛡️ PERLINDUNGAN: Anti-Fling, Anti-Ragdoll, Anti-Sit
+    -- ================================================
+
+    local Protection = {
+        AntiFling   = false,
+        AntiRagdoll = false,
+        AntiSit     = false,
+    }
+
+    local function HookProtection(char)
+        local humanoid = char:WaitForChild("Humanoid", 5)
+        local root = char:WaitForChild("HumanoidRootPart", 5)
+        if not humanoid or not root then return end
+
+        -- Anti Ragdoll: kalau state berubah jadi Ragdoll, langsung paksa bangun lagi
+        pcall(function()
+            humanoid.StateChanged:Connect(function(_, new)
+                if Protection.AntiRagdoll and new == Enum.HumanoidStateType.Ragdoll then
+                    pcall(function()
+                        humanoid:ChangeState(Enum.HumanoidStateType.GettingUp)
+                    end)
+                end
+            end)
+        end)
+
+        -- Anti Sit: kalau ada yang maksa duduk, langsung dilepas lagi
+        pcall(function()
+            humanoid:GetPropertyChangedSignal("Sit"):Connect(function()
+                if Protection.AntiSit and humanoid.Sit then
+                    pcall(function()
+                        humanoid.Sit = false
+                        humanoid.Jump = true
+                    end)
+                end
+            end)
+        end)
+
+        -- Anti Fling: hancurkan BodyMover asing yang ditempel ke root kita
+        pcall(function()
+            root.ChildAdded:Connect(function(child)
+                if Protection.AntiFling and child:IsA("BodyMover") then
+                    task.defer(function()
+                        pcall(function() child:Destroy() end)
+                    end)
+                end
+            end)
+        end)
+    end
+
+    pcall(function()
+        if LocalPlayer.Character then
+            HookProtection(LocalPlayer.Character)
+        end
+        LocalPlayer.CharacterAdded:Connect(function(char)
+            task.wait(0.2)
+            HookProtection(char)
+        end)
+    end)
+
+    -- Anti Fling lapis kedua: batasi kecepatan gerak abnormal tiap frame
+    pcall(function()
+        RunService.Heartbeat:Connect(function()
+            if not Protection.AntiFling then return end
+            local char = LocalPlayer.Character
+            local root = char and char:FindFirstChild("HumanoidRootPart")
+            if not root then return end
+
+            local vel = root.AssemblyLinearVelocity
+            if vel.Magnitude > 300 then
+                root.AssemblyLinearVelocity = Vector3.new(0, math.clamp(vel.Y, -50, 50), 0)
+            end
+
+            local avel = root.AssemblyAngularVelocity
+            if avel.Magnitude > 50 then
+                root.AssemblyAngularVelocity = Vector3.new(0, 0, 0)
+            end
+        end)
+    end)
+
+    -- ================================================
+    -- UI (WindUI)
     -- ================================================
 
     local Window = Library:CreateWindow({
@@ -589,28 +655,51 @@ local function MainScript()
         Size     = UDim2.new(0, 560, 0, 460),
     })
 
-    local MainTab = Window:Tab({ Title = "Main" })
-    local SetTab  = Window:Tab({ Title = "Settings" })
-    local DevTab  = Window:Tab({ Title = "Developer" })
+    pcall(function()
+        Window:SetToggleKey(Enum.KeyCode.RightShift)
+    end)
+
+    local MainTab  = Window:Tab({ Title = "Main" })
+    local SetTab   = Window:Tab({ Title = "Settings" })
+    local ProtTab  = Window:Tab({ Title = "Perlindungan" })
+    local DevTab   = Window:Tab({ Title = "Developer" })
+
+    -- Paksa buka tab Main duluan setelah key benar, biar gak blank/kosong
+    -- dan gak perlu klik manual. Dicoba beberapa nama method sekaligus
+    -- biar tetap kompatibel walau ada perbedaan versi WindUI.
+    pcall(function() Window:SelectTab(MainTab) end)
+    pcall(function() Window:SetTab(MainTab) end)
+    pcall(function() MainTab:Select() end)
+    pcall(function() MainTab:Show() end)
 
     -- ================================================
     -- 🍌 TAB MAIN
     -- ================================================
 
     local playerDropdown
+    local lastNotifiedTarget = nil
+    local lastSearchCallTime = 0
+    local selectionMode = nil -- "search" atau "dropdown" -- saling eksklusif
 
     local function RefreshDrop(kw)
         local newOptions = FilterPlayers(kw or "")
         if not playerDropdown then return end
-        -- Coba beberapa nama method yang umum dipakai (biar tetap kompatibel
-        -- walau ada perbedaan versi WindUI)
-        local tried =
-            pcall(function() playerDropdown:Refresh(newOptions) end) or
-            pcall(function() playerDropdown:SetValues(newOptions) end) or
-            pcall(function() playerDropdown:Reload(newOptions) end)
+        pcall(function() playerDropdown:Refresh(newOptions) end)
+        pcall(function() playerDropdown:SetValues(newOptions) end)
+        pcall(function() playerDropdown:Reload(newOptions) end)
     end
 
-    MainTab:Paragraph({ Title = "Target", Desc = "Cari dan pilih target untuk diserang." })
+    local function ResetTargetSelection()
+        targetPlayer = nil
+        lastNotifiedTarget = nil
+        selectionMode = nil
+        ClearVictimVisuals()
+        pcall(function()
+            Library:Notify({ Title = "🔄 Target Direset", Content = "Silakan pilih target baru.", Duration = 2 })
+        end)
+    end
+
+    MainTab:Paragraph({ Title = "Target", Desc = "Cari dan pilih target untuk diserang. Kalau sudah pilih dari salah satu cara, cara satunya otomatis nonaktif sampai kamu reset." })
 
     MainTab:Input({
         Title       = "Cari Nama / Nickname",
@@ -618,14 +707,28 @@ local function MainScript()
         Placeholder = "Ketik 3+ huruf → auto terpilih!",
         Flag        = "SearchBox",
         Callback    = function(input)
+            -- Kalau sudah pilih via Dropdown, cari nama/nickname dinonaktifkan
+            if selectionMode == "dropdown" then return end
+
+            local now = tick()
+            if now - lastSearchCallTime < 0.3 then return end
+            lastSearchCallTime = now
+
             pcall(function() RefreshDrop(input) end)
             local found = AutoSelect(input)
             if found and found ~= targetPlayer then
                 targetPlayer = found
+                selectionMode = "search"
                 if active then SetupVictimVisuals(targetPlayer) end
-                Library:Notify({ Title = "✅ "..found.DisplayName, Content = "Username: "..found.Name, Duration = 2 })
+                if found ~= lastNotifiedTarget then
+                    lastNotifiedTarget = found
+                    pcall(function()
+                        Library:Notify({ Title = "✅ "..found.DisplayName, Content = "Username: "..found.Name, Duration = 2 })
+                    end)
+                end
             elseif #input == 0 then
                 targetPlayer = nil
+                selectionMode = nil
             end
         end,
     })
@@ -636,12 +739,21 @@ local function MainScript()
         Value    = "Pilih player...",
         Flag     = "PlayerSelect",
         Callback = function(sel)
+            -- Kalau sudah pilih via Search, dropdown dinonaktifkan
+            if selectionMode == "search" then return end
+
             local str = type(sel) == "table" and (sel.Title or sel[1]) or sel
             local plr = ParsePlayer(str)
             if plr then
                 targetPlayer = plr
+                selectionMode = "dropdown"
                 if active then SetupVictimVisuals(targetPlayer) end
-                Library:Notify({ Title = "🎯 "..plr.DisplayName, Content = "Username: "..plr.Name, Duration = 2 })
+                if plr ~= lastNotifiedTarget then
+                    lastNotifiedTarget = plr
+                    pcall(function()
+                        Library:Notify({ Title = "🎯 "..plr.DisplayName, Content = "Username: "..plr.Name, Duration = 2 })
+                    end)
+                end
             end
         end,
     })
@@ -649,6 +761,11 @@ local function MainScript()
     MainTab:Button({
         Title    = "🔄 Refresh List",
         Callback = function() RefreshDrop("") end
+    })
+
+    MainTab:Button({
+        Title    = "❌ Reset Target",
+        Callback = ResetTargetSelection
     })
 
     MainTab:Paragraph({ Title = "Control", Desc = "Aktifkan serangan pisang." })
@@ -660,7 +777,9 @@ local function MainScript()
         Callback = function(val)
             if val then
                 if not targetPlayer then
-                    Library:Notify({ Title = "Pilih target dulu!", Content = "", Duration = 2 })
+                    pcall(function()
+                        Library:Notify({ Title = "Pilih target dulu!", Content = "", Duration = 2 })
+                    end)
                     return
                 end
                 StartChase()
@@ -674,58 +793,97 @@ local function MainScript()
         Title    = "🎯 Lempar Banana Peel",
         Callback = function()
             ThrowBanana()
-            Library:Notify({ Title = "🍌", Content = "Pisang dilempar!", Duration = 2 })
+            pcall(function()
+                Library:Notify({ Title = "🍌", Content = "Pisang dilempar!", Duration = 2 })
+            end)
         end
     })
 
     MainTab:Paragraph({
         Title = "Cara Pakai",
-        Desc  = "1. Pilih target\n2. Atur bagian tubuh di Settings\n3. Enable & lempar pisang!\n4. Pisang prediksi lari/loncat & serangan SELALU KE ATAS! 🍌💀"
+        Desc  = "1. Pilih target\n2. Enable & lempar pisang!\n3. Pisang otomatis nempel 0 studs di perut korban\n4. Serangan SELALU KE ATAS, gak akan miss walau korban lari/loncat! 🍌💀"
     })
 
     -- ================================================
     -- ⚙️ TAB SETTINGS
     -- ================================================
 
-    SetTab:Paragraph({ Title = "Target Bagian Tubuh", Desc = "Pilih bagian tubuh yang jadi titik serang." })
-    SetTab:Dropdown({
-        Title    = "Bagian Tubuh",
-        Values   = bodyPartsList,
-        Value    = "HumanoidRootPart",
-        Flag     = "BodyPartSelect",
-        Callback = function(sel)
-            local str = type(sel) == "table" and (sel.Title or sel[1]) or sel
-            Config.TargetPart = str
-        end
-    })
-
-    SetTab:Paragraph({ Title = "Visual", Desc = "Pengaturan tampilan tambahan." })
-    SetTab:Toggle({
-        Title    = "Tracer Line",
-        Value    = false,
-        Flag     = "TracerToggle",
-        Callback = function(val)
-            Config.Tracer = val
-            if val then
-                if active then CreateTracer() end
-            else
-                DestroyTracer()
-            end
-        end
-    })
-
-    SetTab:Paragraph({ Title = "Kecepatan", Desc = "Atur kecepatan lemparan pisang." })
+    SetTab:Paragraph({ Title = "Kecepatan Lempar", Desc = "Kecepatan pisang saat baru dilempar." })
     SetTab:Slider({
         Title    = "Speed Pisang",
-        Value    = { Min = 100, Max = 3000, Default = 900 },
+        Value    = { Min = 100, Max = 3000, Default = 800 },
         Step     = 100,
         Flag     = "BananaSpeed",
         Callback = function(v) Config.Speed = v end
     })
 
-    SetTab:Paragraph({
-        Title = "Panduan Speed",
-        Desc  = "300 = pelan | 500 = sedang | 800 = default | 1200 = kencang | 3000 = MAXIMUM 💀"
+    SetTab:Paragraph({ Title = "Kekuatan Dorongan", Desc = "Seberapa kuat korban terdorong ke atas saat kena pisang." })
+    SetTab:Slider({
+        Title    = "Blast Power (Ke Atas)",
+        Value    = { Min = 500000, Max = 5000000, Default = 2000000 },
+        Step     = 100000,
+        Flag     = "BlastPower",
+        Callback = function(v) Config.BlastPower = v end
+    })
+
+    SetTab:Paragraph({ Title = "Keybind UI", Desc = "Atur tombol untuk minimize/tampilkan kembali menu ini (khusus PC)." })
+    SetTab:Keybind({
+        Title    = "Toggle UI Key",
+        Value    = "RightShift",
+        Flag     = "ToggleUIKey",
+        Callback = function(v)
+            pcall(function()
+                Window:SetToggleKey(Enum.KeyCode[v])
+            end)
+            pcall(function()
+                Library:Notify({ Title = "⌨️ Keybind Diubah", Content = "Tombol toggle UI: "..tostring(v), Duration = 2 })
+            end)
+        end
+    })
+
+    -- ================================================
+    -- 🛡️ TAB PERLINDUNGAN
+    -- ================================================
+
+    ProtTab:Paragraph({
+        Title = "Perlindungan Diri",
+        Desc  = "Kebal dari gangguan pemain lain -- fling, ragdoll paksa, dan duduk paksa."
+    })
+
+    ProtTab:Toggle({
+        Title    = "🛡️ Anti-Fling",
+        Value    = false,
+        Flag     = "AntiFlingToggle",
+        Callback = function(val)
+            Protection.AntiFling = val
+            pcall(function()
+                Library:Notify({ Title = val and "🛡️ Anti-Fling ON" or "Anti-Fling OFF", Content = "", Duration = 2 })
+            end)
+        end
+    })
+
+    ProtTab:Toggle({
+        Title    = "🛡️ Anti-Ragdoll",
+        Value    = false,
+        Flag     = "AntiRagdollToggle",
+        Callback = function(val)
+            Protection.AntiRagdoll = val
+            pcall(function()
+                Library:Notify({ Title = val and "🛡️ Anti-Ragdoll ON" or "Anti-Ragdoll OFF", Content = "", Duration = 2 })
+            end)
+        end
+    })
+
+    ProtTab:Toggle({
+        Title    = "🛡️ Anti-Sit",
+        Value    = false,
+        Flag     = "AntiSitToggle",
+        Callback = function(val)
+            Protection.AntiSit = val
+            pcall(function()
+                Library:Notify({ Title = val and "🛡️ Anti-Sit ON" or "Anti-Sit OFF", Content = "", Duration = 2 })
+            end)
+        end
     })
 
     -- ================================================
@@ -747,11 +905,13 @@ local function MainScript()
                     copied = true
                 end
             end)
-            if copied then
-                Library:Notify({ Title = "📋 Disalin!", Content = "Discord @cenntzy sudah disalin ke clipboard.", Duration = 3 })
-            else
-                Library:Notify({ Title = "Discord", Content = "@cenntzy (clipboard tidak didukung executor ini)", Duration = 5 })
-            end
+            pcall(function()
+                if copied then
+                    Library:Notify({ Title = "📋 Disalin!", Content = "Discord @cenntzy sudah disalin ke clipboard.", Duration = 3 })
+                else
+                    Library:Notify({ Title = "Discord", Content = "@cenntzy (clipboard tidak didukung executor ini)", Duration = 5 })
+                end
+            end)
         end
     })
 
@@ -760,16 +920,23 @@ local function MainScript()
     end)
     pcall(function()
         Players.PlayerRemoving:Connect(function(plr)
-            if targetPlayer == plr then targetPlayer = nil StopChase() end
+            if targetPlayer == plr then
+                targetPlayer = nil
+                selectionMode = nil
+                StopChase()
+            end
+            if lastNotifiedTarget == plr then lastNotifiedTarget = nil end
             task.wait(0.5) RefreshDrop("")
         end)
     end)
 
-    Library:Notify({
-        Title    = "Banana Peel - Hutan",
-        Content  = "By @cenntzy | Prediksi Lari/Loncat + Serangan Ke Atas!",
-        Duration = 3
-    })
+    pcall(function()
+        Library:Notify({
+            Title    = "Banana Peel - Hutan",
+            Content  = "By @cenntzy | Pisang nempel 0 studs + Serangan Ke Atas!",
+            Duration = 3
+        })
+    end)
 end
 
 -- ================================================
