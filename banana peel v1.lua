@@ -219,12 +219,22 @@ local function MainScript()
     local Config = {
         Speed      = 800,
         BlastPower = 2000000,
+        TargetPart = "HumanoidRootPart",
     }
     local targetPlayer  = nil
     local active        = false
     local conn          = nil
     local myBananas     = {}
     local lastThrowTime = 0
+
+    local bodyPartsList = {
+        "Head","UpperTorso","LowerTorso","Torso",
+        "LeftUpperArm","LeftLowerArm","LeftHand",
+        "RightUpperArm","RightLowerArm","RightHand",
+        "LeftUpperLeg","LeftLowerLeg","LeftFoot",
+        "RightUpperLeg","RightLowerLeg","RightFoot",
+        "HumanoidRootPart"
+    }
 
     -- ================================================
     -- UTILITY
@@ -335,22 +345,35 @@ local function MainScript()
         currentVisualFor = plr
 
         victimHighlight = Instance.new("Highlight")
-        victimHighlight.FillColor = Color3.fromRGB(180, 40, 40)
-        victimHighlight.OutlineColor = Color3.fromRGB(180, 40, 40)
-        victimHighlight.FillTransparency = 0.85
-        victimHighlight.OutlineTransparency = 0.6
+        victimHighlight.FillColor = Color3.fromRGB(40, 120, 255)
+        victimHighlight.OutlineColor = Color3.fromRGB(60, 140, 255)
+        victimHighlight.FillTransparency = 0.75
+        victimHighlight.OutlineTransparency = 0.15
         victimHighlight.Parent = char
 
         victimBillboard = Instance.new("BillboardGui")
         victimBillboard.Name = "BananaDistanceGui"
-        victimBillboard.Size = UDim2.new(0, 110, 0, 20)
+        victimBillboard.Size = UDim2.new(0, 130, 0, 34)
         victimBillboard.StudsOffset = Vector3.new(0, 3, 0)
         victimBillboard.AlwaysOnTop = true
         victimBillboard.Parent = char:FindFirstChild("Head") or root
 
+        local nameLabel = Instance.new("TextLabel")
+        nameLabel.Name = "NameLabel"
+        nameLabel.Size = UDim2.new(1, 0, 0, 12)
+        nameLabel.Position = UDim2.new(0, 0, 0, 0)
+        nameLabel.BackgroundTransparency = 1
+        nameLabel.Font = Enum.Font.GothamBold
+        nameLabel.TextSize = 10
+        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.TextStrokeTransparency = 0
+        nameLabel.Text = plr.DisplayName.." (@"..plr.Name..")"
+        nameLabel.Parent = victimBillboard
+
         local label = Instance.new("TextLabel")
         label.Name = "DistanceLabel"
-        label.Size = UDim2.new(1, 0, 1, 0)
+        label.Size = UDim2.new(1, 0, 0, 12)
+        label.Position = UDim2.new(0, 0, 0, 14)
         label.BackgroundTransparency = 1
         label.Font = Enum.Font.GothamBold
         label.TextSize = 10
@@ -385,6 +408,30 @@ local function MainScript()
     end
 
     -- ================================================
+    -- 📡 AUTO RE-ATTACH ESP saat korban respawn
+    -- (misal setelah kepental ke langit lalu jatuh/respawn) --
+    -- tanpa perlu toggle Enable Banana Chaser manual lagi
+    -- ================================================
+
+    local targetCharConn = nil
+
+    local function HookTargetCharacterAdded(plr)
+        if targetCharConn then
+            pcall(function() targetCharConn:Disconnect() end)
+            targetCharConn = nil
+        end
+        if not plr then return end
+        targetCharConn = plr.CharacterAdded:Connect(function(newChar)
+            task.spawn(function()
+                local root = newChar:WaitForChild("HumanoidRootPart", 5)
+                if root and targetPlayer == plr and active then
+                    SetupVictimVisuals(plr)
+                end
+            end)
+        end)
+    end
+
+    -- ================================================
     -- 🔥 GLOBAL ATTACK -- LOGIKA DIKEMBALIKAN seperti versi
     -- yang berhasil melempar korban (sebelum "optimasi" kemarin)
     -- ================================================
@@ -402,6 +449,14 @@ local function MainScript()
                 pcall(function() child:Destroy() end)
             end
         end
+
+        -- Ambil alih network ownership root korban ke client kita. Tanpa ini,
+        -- fisika korban masih "dimiliki" client mereka sendiri, jadi velocity
+        -- yang kita paksa sempat dilawan/dikoreksi balik beberapa frame dulu
+        -- sebelum akhirnya nurut -- ini penyebab jeda sebelum korban kedorong.
+        pcall(function()
+            targetRoot:SetNetworkOwner(LocalPlayer)
+        end)
 
         local bv = Instance.new("BodyVelocity")
         bv.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
@@ -438,21 +493,49 @@ local function MainScript()
             if not targetPlayer or not targetPlayer.Character then return end
             if targetPlayer == LocalPlayer then return end
 
+            -- ESP di-update PALING DULUAN di sini, TIDAK digantung sama
+            -- pengecekan targetRoot/banana di bawah -- supaya ESP tetap
+            -- selalu di-scan ulang tiap frame walau logika serangan di bawah
+            -- sempat gagal/kosong (misal pas korban baru aja respawn).
+            UpdateVictimVisuals()
+
             local character = targetPlayer.Character
             local targetRoot = character:FindFirstChild("HumanoidRootPart")
             local humanoid   = character:FindFirstChildOfClass("Humanoid")
             if not targetRoot then return end
+
+            -- Bagian tubuh yang jadi titik tempel pisang (bisa diganti di Settings)
+            local targetPart = character:FindFirstChild(Config.TargetPart)
+            if not targetPart or not targetPart:IsA("BasePart") then
+                targetPart = targetRoot
+            end
 
             local EXTREME = Vector3.new(999999, 999999, 999999)
             local upBlast = Vector3.new(0, Config.BlastPower, 0)
 
             local movers = GetOrCreateMovers(targetRoot)
 
+            -- Offset posisi pisang:
+            -- - Diam (gak ada gerak horizontal)   -> 0 studs, pas di targetPart
+            -- - Lari/jalan                        -> 0.1 studs di DEPAN arah gerak
+            -- - Loncat (velocity Y positif)        -> tambahan +2 studs ke atas
+            local vel = targetPart.AssemblyLinearVelocity
+            local horizVel = Vector3.new(vel.X, 0, vel.Z)
+            local horizSpeed = horizVel.Magnitude
+
+            local predictedPos = targetPart.Position
+            if horizSpeed > 0.5 then
+                predictedPos = predictedPos + horizVel.Unit * 0.1
+            end
+            if vel.Y > 2 then
+                predictedPos = predictedPos + Vector3.new(0, 2, 0)
+            end
+
             for _, banana in ipairs(FindBananas()) do
                 if not banana or not banana.Parent then continue end
 
                 pcall(function()
-                    banana.CFrame = targetRoot.CFrame
+                    banana.CFrame = CFrame.new(predictedPos)
                 end)
                 banana.Anchored = false
                 banana.CanCollide = false
@@ -465,20 +548,29 @@ local function MainScript()
                     humanoid.Sit = false
                     humanoid.WalkSpeed = 0
                     humanoid.JumpPower = 0
+                    -- Setop niat gerak humanoid sepenuhnya, biar gak "ngelawan"
+                    -- balik dorongan pisang di frame-frame awal
+                    pcall(function() humanoid:Move(Vector3.new(0, 0, 0), false) end)
                 end
 
-                local rigVelocity = targetRoot.AssemblyLinearVelocity
-                local rigAngular = targetRoot.AssemblyAngularVelocity
-
-                targetRoot.AssemblyLinearVelocity  = rigVelocity + upBlast
-                targetRoot.AssemblyAngularVelocity = rigAngular + EXTREME
+                -- FIX BUG: sebelumnya velocity DITAMBAH terus tiap frame
+                -- (rigVelocity + upBlast), jadi numpuk sampai ekstrem dalam
+                -- hitungan detik -- makanya slider kecil/gede kelihatan SAMA
+                -- AJA (sama-sama udah mentok). Sekarang di-SET langsung
+                -- (bukan ditambah), jadi kekuatan slider beneran kepakai
+                -- dan kerasa bedanya.
+                targetRoot.AssemblyLinearVelocity  = upBlast
+                targetRoot.AssemblyAngularVelocity = EXTREME
 
                 movers.bv.Velocity = upBlast
                 movers.bav.AngularVelocity = EXTREME
 
                 for _, part in ipairs(character:GetChildren()) do
                     if part:IsA("BasePart") and part ~= targetRoot then
-                        part.AssemblyLinearVelocity  = EXTREME
+                        -- Ikut proporsional ke Blast Power juga (bukan angka
+                        -- tetap), supaya SEMUA bagian tubuh kerasa efek
+                        -- slidernya, bukan cuma root doang
+                        part.AssemblyLinearVelocity  = upBlast
                         part.AssemblyAngularVelocity = EXTREME
                     end
                 end
@@ -688,6 +780,7 @@ local function MainScript()
     -- ================================================
 
     local playerDropdown
+    local searchBoxRef
     local lastNotifiedTarget = nil
     local selectionMode = nil -- "search" atau "dropdown" -- saling eksklusif
 
@@ -704,6 +797,7 @@ local function MainScript()
         lastNotifiedTarget = nil
         selectionMode = nil
         ClearVictimVisuals()
+        HookTargetCharacterAdded(nil)
         pcall(function()
             Rayfield:Notify({ Title = "🔄 Target Direset", Content = "Silakan pilih target baru.", Duration = 2 })
         end)
@@ -711,7 +805,7 @@ local function MainScript()
 
     MainTab:CreateSection("Target")
 
-    MainTab:CreateInput({
+    searchBoxRef = MainTab:CreateInput({
         Name                     = "Cari Nama / Nickname",
         PlaceholderText          = "Ketik 3+ huruf → auto terpilih!",
         RemoveTextAfterFocusLost = false,
@@ -724,7 +818,9 @@ local function MainScript()
             if found and found ~= targetPlayer then
                 targetPlayer = found
                 selectionMode = "search"
-                -- ESP HANYA muncul kalau chaser sedang aktif
+                -- Reset tampilan Dropdown supaya jelas gak lagi dipakai
+                pcall(function() playerDropdown:Set({"Pilih player..."}) end)
+                HookTargetCharacterAdded(targetPlayer)
                 if active then SetupVictimVisuals(targetPlayer) end
                 if found ~= lastNotifiedTarget then
                     lastNotifiedTarget = found
@@ -753,6 +849,9 @@ local function MainScript()
             if plr then
                 targetPlayer = plr
                 selectionMode = "dropdown"
+                -- Reset tampilan Search Box supaya jelas gak lagi dipakai
+                pcall(function() searchBoxRef:Set("") end)
+                HookTargetCharacterAdded(targetPlayer)
                 if active then SetupVictimVisuals(targetPlayer) end
                 if plr ~= lastNotifiedTarget then
                     lastNotifiedTarget = plr
@@ -811,6 +910,20 @@ local function MainScript()
     -- ⚙️ TAB SETTINGS
     -- ================================================
 
+    SetTab:CreateSection("Target Bagian Tubuh")
+
+    SetTab:CreateDropdown({
+        Name            = "Pisang Mendarat di Bagian Tubuh",
+        Options         = bodyPartsList,
+        CurrentOption   = {"HumanoidRootPart"},
+        MultipleOptions = false,
+        Flag            = "BodyPartSelect",
+        Callback        = function(sel)
+            local str = type(sel) == "table" and sel[1] or sel
+            Config.TargetPart = str
+        end,
+    })
+
     SetTab:CreateSection("Kecepatan & Kekuatan")
 
     SetTab:CreateSlider({
@@ -825,17 +938,20 @@ local function MainScript()
 
     SetTab:CreateSlider({
         Name         = "Blast Power (Ke Atas)",
-        Range        = {500000, 5000000},
-        Increment    = 100000,
+        Range        = {500000, 10000000},
+        Increment    = 250000,
         Suffix       = " power",
-        CurrentValue = 2000000,
+        CurrentValue = 3000000,
         Flag         = "BlastPower",
-        Callback     = function(v) Config.BlastPower = v end,
+        Callback     = function(v)
+            Config.BlastPower = v
+            Rayfield:Notify({ Title = "💥 Blast Power: "..v, Duration = 1 })
+        end,
     })
 
     SetTab:CreateParagraph({
         Title   = "Panduan",
-        Content = "Blast Power makin tinggi = korban makin tinggi & jauh terpental.",
+        Content = "Blast Power makin tinggi = korban makin tinggi & jauh terpental. Sekarang beneran ngefek sesuai slider (bug numpuk sudah diperbaiki).",
     })
 
     -- ================================================
