@@ -1,7 +1,7 @@
 -- ================================================
 --   🍌 Banana Peel - Hutan @cenntzy (V1)
 --   UI: Rayfield + Key Gate Terpisah
---   Mode Manual + Mode Serang Semua (prioritas terdekat, gantian 1.5s)
+--   Mode Manual SAJA (mode Serang Semua dihapus)
 -- ================================================
 
 local Players      = game:GetService("Players")
@@ -223,23 +223,10 @@ local function MainScript()
     }
     local targetPlayer  = nil  -- target manual (dipilih user)
     local active        = false
+    local wantsActive    = false -- niat user (toggle Enable), terpisah dari `active`
     local conn          = nil
     local myBananas     = {}
     local lastThrowTime = 0
-
-    -- === Mode Serang Semua ===
-    local attackAllMode        = false
-    local autoTarget           = nil
-    local autoTargetSetAt      = 0
-    local AUTO_SWITCH_INTERVAL = 1      -- gantian tiap 1 detik
-    local AUTO_COOLDOWN        = 30     -- baru bisa kepilih lagi setelah 30 detik
-    local MIN_PICK_DISTANCE    = 15     -- jangan yang KETERLALU deket
-    local MAX_PICK_DISTANCE    = 200    -- jangan yang KETERLALU jauh
-    local recentlyAttacked     = {}
-
-    -- Target yang SEDANG diserang saat ini (bisa targetPlayer atau autoTarget
-    -- tergantung mode) -- ESP selalu ngikutin variabel ini
-    local displayTarget = nil
 
     local bodyPartsList = {
         "Head","UpperTorso","LowerTorso","Torso",
@@ -283,49 +270,6 @@ local function MainScript()
             end
         end
         return nil
-    end
-
-    local function GetCenter(char)
-        if not char then return nil end
-        local root = char:FindFirstChild("HumanoidRootPart")
-        if not root then return nil end
-        return root.Position
-    end
-
-    -- Cek apakah player sedang duduk di kursi (Seat/VehicleSeat), bukan
-    -- cuma humanoid.Sit doang (biar akurat: kursi beneran, bukan trik lain)
-    local function IsSeated(plr)
-        local char = plr.Character
-        if not char then return false end
-        local hum = char:FindFirstChildOfClass("Humanoid")
-        if not hum then return false end
-        return hum.SeatPart ~= nil or hum.Sit == true
-    end
-
-    -- 🎲 Cari korban buat Mode Serang Semua: ACAK (bukan prioritas terdekat),
-    -- tapi tetap dibatasi jarak -- jangan yang KETERLALU deket atau jauh,
-    -- skip yang lagi cooldown, dan skip yang lagi duduk di kursi.
-    local function FindRandomVictim(fromPos, excludeMap)
-        local inRange, fallback = {}, {}
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer and plr.Character then
-                local onCooldown = excludeMap and excludeMap[plr] and tick() < excludeMap[plr]
-                if not onCooldown and not IsSeated(plr) then
-                    local pos = GetCenter(plr.Character)
-                    if pos then
-                        local d = (pos - fromPos).Magnitude
-                        table.insert(fallback, plr)
-                        if d >= MIN_PICK_DISTANCE and d <= MAX_PICK_DISTANCE then
-                            table.insert(inRange, plr)
-                        end
-                    end
-                end
-            end
-        end
-
-        local pool = #inRange > 0 and inRange or fallback
-        if #pool == 0 then return nil end
-        return pool[math.random(1, #pool)]
     end
 
     local function ClaimIfMine(obj)
@@ -465,7 +409,7 @@ local function MainScript()
     end
 
     -- ================================================
-    -- 📡 AUTO RE-ATTACH ESP saat korban respawn (khusus mode Manual)
+    -- 📡 AUTO RE-ATTACH ESP saat korban respawn
     -- ================================================
 
     local targetCharConn = nil
@@ -479,7 +423,7 @@ local function MainScript()
         targetCharConn = plr.CharacterAdded:Connect(function(newChar)
             task.spawn(function()
                 local root = newChar:WaitForChild("HumanoidRootPart", 5)
-                if root and not attackAllMode and targetPlayer == plr and active then
+                if root and targetPlayer == plr and active then
                     SetupVictimVisuals(plr)
                 end
             end)
@@ -531,58 +475,35 @@ local function MainScript()
         victimMovers = {}
     end
 
-    local function StartChase()
+    -- Coba mulai chase kalau syaratnya udah kepenuhi (dipanggil dari toggle
+    -- DAN dari search/dropdown -- biar auto-start begitu target kepilih
+    -- walau Enable udah di-ON duluan sebelum target dipilih)
+    local StartChase, StopChase
+
+    local function TryAutoStart()
+        if wantsActive and not active and targetPlayer then
+            StartChase()
+        end
+    end
+
+    StartChase = function()
         if conn then conn:Disconnect() end
+        if targetPlayer == LocalPlayer then return end
+        if not targetPlayer then return end
+
         active = true
         ClearAllMovers()
-
-        if attackAllMode then
-            autoTarget = nil
-            autoTargetSetAt = 0
-            recentlyAttacked = {}
-        else
-            if targetPlayer == LocalPlayer then active = false return end
-            displayTarget = targetPlayer
-            SetupVictimVisuals(targetPlayer)
-        end
+        SetupVictimVisuals(targetPlayer)
 
         conn = RunService.Heartbeat:Connect(function(dt)
             if not active then return end
-
-            -- Tentukan siapa yang SEDANG diserang frame ini, tergantung mode
-            local currentTarget = nil
-
-            if attackAllMode then
-                local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
-                local fromPos = myRoot and myRoot.Position
-
-                if fromPos and (not autoTarget or not autoTarget.Character or tick() - autoTargetSetAt >= AUTO_SWITCH_INTERVAL) then
-                    if autoTarget then
-                        recentlyAttacked[autoTarget] = tick() + AUTO_COOLDOWN
-                    end
-                    local nextVictim = FindRandomVictim(fromPos, recentlyAttacked)
-                    if nextVictim then
-                        autoTarget = nextVictim
-                        autoTargetSetAt = tick()
-                    end
-                end
-                currentTarget = autoTarget
-            else
-                currentTarget = targetPlayer
-            end
-
-            displayTarget = currentTarget
-
-            if not currentTarget or not currentTarget.Character or currentTarget == LocalPlayer then
-                return
-            end
+            if not targetPlayer or not targetPlayer.Character or targetPlayer == LocalPlayer then return end
 
             -- ESP di-update PALING DULUAN, gak digantung sama pengecekan
-            -- targetRoot/banana di bawah -- ESP (ikut target yg lagi
-            -- diserang, gantian di mode Serang Semua) selalu ke-refresh
-            UpdateVictimVisuals(currentTarget)
+            -- targetRoot/banana di bawah
+            UpdateVictimVisuals(targetPlayer)
 
-            local character = currentTarget.Character
+            local character = targetPlayer.Character
             local targetRoot = character:FindFirstChild("HumanoidRootPart")
             local humanoid   = character:FindFirstChildOfClass("Humanoid")
             if not targetRoot then return end
@@ -597,13 +518,7 @@ local function MainScript()
 
             local movers = GetOrCreateMovers(targetRoot)
 
-            -- Kunci gerakan korban SELALU aktif selama masih diserang, TIDAK
-            -- cuma pas ada pisang yang lagi ke-detect. Sebelumnya ini ada DI
-            -- DALAM loop banana, jadi kalau pisang sempat "kosong" sebentar
-            -- (misal abis hilang/belum ke-klaim ulang), korban lepas kunci dan
-            -- bisa loncat lagi berkali-kali, ngereset dorongan yang udah
-            -- numpuk -- makanya kalau korban spam loncat, dia kelihatan gak
-            -- kedorong sama sekali.
+            -- Kunci gerakan korban SELALU aktif selama masih diserang
             if humanoid then
                 pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
                 humanoid.PlatformStand = true
@@ -621,15 +536,11 @@ local function MainScript()
             local predictedPos = targetPart.Position
 
             if isJumping then
-                -- Loncat: pisang di DEPAN korban 0.2 studs sesuai arah dia
-                -- loncat (kalau ada gerak horizontal pas loncat), plus tetap
-                -- naik +2 studs biar keliatan "ikut melompat"
                 if horizSpeed > 0.5 then
                     predictedPos = predictedPos + horizVel.Unit * 0.2
                 end
                 predictedPos = predictedPos + Vector3.new(0, 1, 0)
             elseif horizSpeed > 0.5 then
-                -- Lari/jalan biasa (gak loncat): 0.1 studs di depan arah gerak
                 predictedPos = predictedPos + horizVel.Unit * 0.1
             end
 
@@ -644,24 +555,26 @@ local function MainScript()
                 banana.AssemblyLinearVelocity  = EXTREME
                 banana.AssemblyAngularVelocity = EXTREME
 
-                if humanoid then
-                    pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
-                    humanoid.PlatformStand = true
-                    humanoid.Sit = false
-                    humanoid.WalkSpeed = 0
-                    humanoid.JumpPower = 0
-                    pcall(function() humanoid:Move(Vector3.new(0, 0, 0), false) end)
-                end
+                -- 💪 DORONGAN MURNI VERTIKAL (lurus ke atas, TANPA komponen
+                -- samping sama sekali). Sebelumnya kita nambah upBlast ke
+                -- velocity yang sudah ada (rigVelocity + upBlast) -- tapi
+                -- kalau rigVelocity punya komponen X/Z (misal korban lagi
+                -- gerak/muter), itu KEBAWA dan bikin lemparannya miring ke
+                -- samping. Sekarang komponen X/Z di-NOL-in total, cuma
+                -- komponen Y (vertikal) yang numpuk terus.
+                local rigVelocity = targetRoot.AssemblyLinearVelocity
+                local rigAngular  = targetRoot.AssemblyAngularVelocity
 
-                targetRoot.AssemblyLinearVelocity  = upBlast
-                targetRoot.AssemblyAngularVelocity = EXTREME
+                targetRoot.AssemblyLinearVelocity  = Vector3.new(0, rigVelocity.Y + upBlast.Y, 0)
+                targetRoot.AssemblyAngularVelocity = rigAngular + EXTREME
 
-                movers.bv.Velocity = upBlast
+                movers.bv.Velocity = Vector3.new(0, upBlast.Y, 0)
                 movers.bav.AngularVelocity = EXTREME
 
                 for _, part in ipairs(character:GetChildren()) do
                     if part:IsA("BasePart") and part ~= targetRoot then
-                        part.AssemblyLinearVelocity  = upBlast
+                        -- Murni vertikal juga buat semua bagian tubuh
+                        part.AssemblyLinearVelocity  = Vector3.new(0, upBlast.Y, 0)
                         part.AssemblyAngularVelocity = EXTREME
                     end
                 end
@@ -671,19 +584,17 @@ local function MainScript()
         pcall(function()
             Rayfield:Notify({
                 Title    = "🍌 GLOBAL ATTACK!",
-                Content  = attackAllMode and "Mode: Serang Semua (prioritas terdekat)" or "Mode: Manual",
+                Content  = "Menyerang "..targetPlayer.DisplayName.."!",
                 Duration = 3,
             })
         end)
     end
 
-    local function StopChase()
+    StopChase = function()
         active = false
         if conn then conn:Disconnect() conn = nil end
         ClearVictimVisuals()
         ClearAllMovers()
-        autoTarget = nil
-        displayTarget = nil
         pcall(function()
             Rayfield:Notify({ Title="🍌 Dimatikan", Content="", Duration=2 })
         end)
@@ -874,6 +785,22 @@ local function MainScript()
     local searchBoxRef
     local lastNotifiedTarget = nil
     local selectionMode = nil -- "search" atau "dropdown" -- saling eksklusif
+    local isSpectating = false
+
+    local function StopViewTarget()
+        local cam = workspace.CurrentCamera
+        local myChar = LocalPlayer.Character
+        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        pcall(function()
+            if cam then
+                cam.CameraType = Enum.CameraType.Custom
+                if myHum then
+                    cam.CameraSubject = myHum
+                end
+            end
+        end)
+        isSpectating = false
+    end
 
     local function RefreshDrop(kw)
         pcall(function()
@@ -887,46 +814,14 @@ local function MainScript()
         targetPlayer = nil
         lastNotifiedTarget = nil
         selectionMode = nil
-        ClearVictimVisuals()
-        HookTargetCharacterAdded(nil)
+        StopChase()
+        if isSpectating then StopViewTarget() end
         pcall(function()
             Rayfield:Notify({ Title = "🔄 Target Direset", Content = "Silakan pilih target baru.", Duration = 2 })
         end)
     end
 
-    MainTab:CreateSection("Mode")
-
-    MainTab:CreateToggle({
-        Name         = "🌐 Mode Serang Semua Orang (Prioritas Terdekat)",
-        CurrentValue = false,
-        Flag         = "AttackAllToggle",
-        Callback     = function(val)
-            attackAllMode = val
-            if val then
-                -- Nonaktifkan pemilihan manual selama mode ini aktif
-                selectionMode = "attackall"
-                ClearVictimVisuals()
-                autoTarget = nil
-                recentlyAttacked = {}
-                pcall(function()
-                    Rayfield:Notify({ Title = "🌐 Mode Serang Semua ON", Content = "Target gantian tiap 1.5 detik, prioritas terdekat.", Duration = 3 })
-                end)
-            else
-                selectionMode = nil
-                ClearVictimVisuals()
-                autoTarget = nil
-                -- Kembali ke target manual yang tersimpan (kalau ada)
-                if active and targetPlayer then
-                    SetupVictimVisuals(targetPlayer)
-                end
-                pcall(function()
-                    Rayfield:Notify({ Title = "🌐 Mode Serang Semua OFF", Content = "Kembali ke target manual.", Duration = 3 })
-                end)
-            end
-        end,
-    })
-
-    MainTab:CreateSection("Target (khusus Mode Manual)")
+    MainTab:CreateSection("Target")
 
     searchBoxRef = MainTab:CreateInput({
         Name                     = "Cari Nama / Nickname",
@@ -934,10 +829,6 @@ local function MainScript()
         RemoveTextAfterFocusLost = false,
         Flag                     = "SearchBox",
         Callback                 = function(input)
-            if attackAllMode then
-                Rayfield:Notify({ Title = "🔒 Nonaktifkan Mode Serang Semua dulu", Duration = 2 })
-                return
-            end
             if selectionMode == "dropdown" then return end
 
             pcall(function() RefreshDrop(input) end)
@@ -947,7 +838,14 @@ local function MainScript()
                 selectionMode = "search"
                 pcall(function() playerDropdown:Set({"Pilih player..."}) end)
                 HookTargetCharacterAdded(targetPlayer)
-                if active then SetupVictimVisuals(targetPlayer) end
+                -- Langsung tampilkan ESP kalau chaser sudah aktif, DAN
+                -- auto-start chase kalau user udah nge-ON Enable duluan
+                -- sebelum target dipilih (fix bug ESP gak muncul)
+                if active then
+                    SetupVictimVisuals(targetPlayer)
+                else
+                    TryAutoStart()
+                end
                 if found ~= lastNotifiedTarget then
                     lastNotifiedTarget = found
                     pcall(function()
@@ -968,10 +866,6 @@ local function MainScript()
         MultipleOptions = false,
         Flag            = "PlayerSelect",
         Callback        = function(sel)
-            if attackAllMode then
-                Rayfield:Notify({ Title = "🔒 Nonaktifkan Mode Serang Semua dulu", Duration = 2 })
-                return
-            end
             if selectionMode == "search" then return end
 
             local str = type(sel) == "table" and sel[1] or sel
@@ -981,7 +875,11 @@ local function MainScript()
                 selectionMode = "dropdown"
                 pcall(function() searchBoxRef:Set("") end)
                 HookTargetCharacterAdded(targetPlayer)
-                if active then SetupVictimVisuals(targetPlayer) end
+                if active then
+                    SetupVictimVisuals(targetPlayer)
+                else
+                    TryAutoStart()
+                end
                 if plr ~= lastNotifiedTarget then
                     lastNotifiedTarget = plr
                     pcall(function()
@@ -989,6 +887,34 @@ local function MainScript()
                     end)
                 end
             end
+        end,
+    })
+
+    MainTab:CreateButton({
+        Name     = "👁️ View Target",
+        Callback = function()
+            if not targetPlayer or not targetPlayer.Character then
+                Rayfield:Notify({ Title = "Belum ada target", Content = "Pilih target dulu sebelum spectate.", Duration = 2 })
+                return
+            end
+            local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+            local cam = workspace.CurrentCamera
+            if humanoid and cam then
+                pcall(function()
+                    cam.CameraSubject = humanoid
+                    cam.CameraType = Enum.CameraType.Custom
+                end)
+                isSpectating = true
+                Rayfield:Notify({ Title = "👁️ Spectate", Content = "Melihat "..targetPlayer.DisplayName, Duration = 2 })
+            end
+        end,
+    })
+
+    MainTab:CreateButton({
+        Name     = "🚫 Stop View Target",
+        Callback = function()
+            StopViewTarget()
+            Rayfield:Notify({ Title = "🚫 Stop Spectate", Content = "Kembali ke kamera sendiri.", Duration = 2 })
         end,
     })
 
@@ -1010,9 +936,10 @@ local function MainScript()
         CurrentValue = false,
         Flag         = "EnableToggle",
         Callback     = function(val)
+            wantsActive = val
             if val then
-                if not attackAllMode and not targetPlayer then
-                    Rayfield:Notify({ Title = "Pilih target dulu (atau aktifkan Mode Serang Semua)!", Duration = 3 })
+                if not targetPlayer then
+                    Rayfield:Notify({ Title = "Belum ada target", Content = "Pilih target dulu -- nanti otomatis mulai begitu kepilih.", Duration = 3 })
                     return
                 end
                 StartChase()
@@ -1032,7 +959,7 @@ local function MainScript()
 
     MainTab:CreateParagraph({
         Title   = "Cara Pakai",
-        Content = "1. Pilih target manual ATAU aktifkan Mode Serang Semua\n2. Enable Banana Chaser (WAJIB, jadi saklar utama kedua mode)\n3. Lempar pisang!\n4. Serang Semua: target gantian tiap 1.5s, prioritas terdekat, ESP ikut pindah 🍌💀",
+        Content = "1. Pilih target (search/list) ATAU Enable dulu baru pilih target -- dua-duanya otomatis mulai\n2. Lempar pisang!\n3. Korban terpental LURUS ke atas 🍌💀",
     })
 
     -- ================================================
@@ -1080,7 +1007,7 @@ local function MainScript()
 
     SetTab:CreateParagraph({
         Title   = "Panduan",
-        Content = "Blast Power makin tinggi = korban makin tinggi & jauh terpental.",
+        Content = "Blast Power makin tinggi = korban makin tinggi terpental (LURUS ke atas, gak ke samping).",
     })
 
     -- ================================================
@@ -1157,10 +1084,9 @@ local function MainScript()
         if targetPlayer == plr then
             targetPlayer = nil
             selectionMode = nil
-            if not attackAllMode then StopChase() end
+            StopChase()
+            if isSpectating then StopViewTarget() end
         end
-        if autoTarget == plr then autoTarget = nil end
-        recentlyAttacked[plr] = nil
         if lastNotifiedTarget == plr then lastNotifiedTarget = nil end
         task.wait(0.5) RefreshDrop("")
     end)
