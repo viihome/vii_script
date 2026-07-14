@@ -1,7 +1,6 @@
 -- ================================================
 --   🍌 Banana Peel - Hutan @cenntzy (V1)
---   UI: Rayfield + Key Gate Terpisah
---   Mode Manual SAJA (mode Serang Semua dihapus)
+--   Custom GUI "CENN HUB!" style
 -- ================================================
 
 local Players      = game:GetService("Players")
@@ -54,7 +53,7 @@ local function ShowKeyGate(onSuccess)
     local Card = Instance.new("Frame")
     Card.Size = UDim2.new(0, 380, 0, 250)
     Card.Position = UDim2.new(0.5, -190, 0.5, -125)
-    Card.BackgroundColor3 = Color3.fromRGB(24, 24, 28)
+    Card.BackgroundColor3 = Color3.fromRGB(24, 12, 40)
     Card.BorderSizePixel = 0
     Card.Parent = ScreenGui
 
@@ -63,7 +62,7 @@ local function ShowKeyGate(onSuccess)
     corner.Parent = Card
 
     local stroke = Instance.new("UIStroke")
-    stroke.Color = Color3.fromRGB(255, 200, 60)
+    stroke.Color = Color3.fromRGB(140, 60, 255)
     stroke.Thickness = 1.5
     stroke.Parent = Card
 
@@ -93,7 +92,7 @@ local function ShowKeyGate(onSuccess)
     local InputHolder = Instance.new("Frame")
     InputHolder.Size = UDim2.new(1, -40, 0, 42)
     InputHolder.Position = UDim2.new(0, 20, 0, 96)
-    InputHolder.BackgroundColor3 = Color3.fromRGB(32, 32, 38)
+    InputHolder.BackgroundColor3 = Color3.fromRGB(38, 18, 65)
     InputHolder.BorderSizePixel = 0
     InputHolder.Parent = Card
 
@@ -102,7 +101,7 @@ local function ShowKeyGate(onSuccess)
     ihCorner.Parent = InputHolder
 
     local ihStroke = Instance.new("UIStroke")
-    ihStroke.Color = Color3.fromRGB(70, 70, 80)
+    ihStroke.Color = Color3.fromRGB(90, 60, 130)
     ihStroke.Thickness = 1.5
     ihStroke.Parent = InputHolder
 
@@ -120,10 +119,10 @@ local function ShowKeyGate(onSuccess)
     KeyBox.Parent = InputHolder
 
     KeyBox.Focused:Connect(function()
-        ihStroke.Color = Color3.fromRGB(255, 200, 60)
+        ihStroke.Color = Color3.fromRGB(170, 100, 255)
     end)
     KeyBox.FocusLost:Connect(function()
-        ihStroke.Color = Color3.fromRGB(70, 70, 80)
+        ihStroke.Color = Color3.fromRGB(90, 60, 130)
     end)
 
     local Status = Instance.new("TextLabel")
@@ -140,11 +139,11 @@ local function ShowKeyGate(onSuccess)
     local SubmitBtn = Instance.new("TextButton")
     SubmitBtn.Size = UDim2.new(1, -40, 0, 40)
     SubmitBtn.Position = UDim2.new(0, 20, 0, 172)
-    SubmitBtn.BackgroundColor3 = Color3.fromRGB(255, 200, 60)
+    SubmitBtn.BackgroundColor3 = Color3.fromRGB(140, 60, 255)
     SubmitBtn.Text = "MASUK"
     SubmitBtn.Font = Enum.Font.GothamBold
     SubmitBtn.TextSize = 15
-    SubmitBtn.TextColor3 = Color3.fromRGB(20, 20, 20)
+    SubmitBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
     SubmitBtn.AutoButtonColor = false
     SubmitBtn.Parent = Card
 
@@ -197,7 +196,7 @@ local function ShowKeyGate(onSuccess)
             stroke.Color = Color3.fromRGB(255, 70, 70)
             ShakeCard()
             task.wait(0.4)
-            stroke.Color = Color3.fromRGB(255, 200, 60)
+            stroke.Color = Color3.fromRGB(140, 60, 255)
             processing = false
         end
     end
@@ -214,50 +213,20 @@ end
 
 local function MainScript()
 
-    local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-
     local Config = {
-        Speed      = 800,
-        BlastPower = 3000000,
+        BlastPower = 6000000,
         TargetPart = "HumanoidRootPart",
     }
-    local targetPlayer  = nil  -- target manual (dipilih user)
+    local targetPlayer  = nil
     local active        = false
-    local wantsActive    = false -- niat user (toggle Enable), terpisah dari `active`
+    local wantsActive   = false
     local conn          = nil
     local myBananas     = {}
     local lastThrowTime = 0
 
-    local bodyPartsList = {
-        "Head","UpperTorso","LowerTorso","Torso",
-        "LeftUpperArm","LeftLowerArm","LeftHand",
-        "RightUpperArm","RightLowerArm","RightHand",
-        "LeftUpperLeg","LeftLowerLeg","LeftFoot",
-        "RightUpperLeg","RightLowerLeg","RightFoot",
-        "HumanoidRootPart"
-    }
-
     -- ================================================
     -- UTILITY
     -- ================================================
-
-    local function FilterPlayers(input)
-        local result, kw = {}, input:lower()
-        for _, plr in ipairs(Players:GetPlayers()) do
-            if plr ~= LocalPlayer then
-                if kw == "" or plr.Name:lower():find(kw, 1, true) or plr.DisplayName:lower():find(kw, 1, true) then
-                    table.insert(result, plr.DisplayName.." ("..plr.Name..")")
-                end
-            end
-        end
-        if #result == 0 then table.insert(result, "Tidak ditemukan") end
-        return result
-    end
-
-    local function ParsePlayer(str)
-        local u = str:match("%((.-)%)")
-        return u and Players:FindFirstChild(u) or nil
-    end
 
     local function AutoSelect(input)
         if #input < 2 then return nil end
@@ -355,7 +324,9 @@ local function MainScript()
         victimBillboard = Instance.new("BillboardGui")
         victimBillboard.Name = "BananaDistanceGui"
         victimBillboard.Size = UDim2.new(0, 130, 0, 34)
-        victimBillboard.StudsOffset = Vector3.new(0, 3, 0)
+        -- Digeser lebih tinggi dari Name ESP (StudsOffset 2.5) supaya gak
+        -- numpuk/nutupin -- "TARGET LOCKED" nongol DI ATAS Name ESP
+        victimBillboard.StudsOffset = Vector3.new(0, 4.6, 0)
         victimBillboard.AlwaysOnTop = true
         victimBillboard.Parent = char:FindFirstChild("Head") or root
 
@@ -366,9 +337,9 @@ local function MainScript()
         nameLabel.BackgroundTransparency = 1
         nameLabel.Font = Enum.Font.GothamBold
         nameLabel.TextSize = 10
-        nameLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        nameLabel.TextColor3 = Color3.fromRGB(255, 90, 90)
         nameLabel.TextStrokeTransparency = 0
-        nameLabel.Text = plr.DisplayName.." (@"..plr.Name..")"
+        nameLabel.Text = "🎯 TARGET LOCKED"
         nameLabel.Parent = victimBillboard
 
         local label = Instance.new("TextLabel")
@@ -409,7 +380,46 @@ local function MainScript()
     end
 
     -- ================================================
-    -- 📡 AUTO RE-ATTACH ESP saat korban respawn
+    -- 👁️ SPECTATE (persisten sampai user OFF-in manual)
+    -- ================================================
+
+    local isSpectating = false
+
+    local function EnforceSpectate()
+        if not isSpectating or not targetPlayer or not targetPlayer.Character then return end
+        local hum = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+        local cam = workspace.CurrentCamera
+        if hum and cam then
+            pcall(function()
+                if cam.CameraSubject ~= hum then
+                    cam.CameraSubject = hum
+                end
+                cam.CameraType = Enum.CameraType.Custom
+            end)
+        end
+    end
+
+    local function StopViewTarget()
+        local cam = workspace.CurrentCamera
+        local myChar = LocalPlayer.Character
+        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
+        pcall(function()
+            if cam then
+                cam.CameraType = Enum.CameraType.Custom
+                if myHum then cam.CameraSubject = myHum end
+            end
+        end)
+        isSpectating = false
+    end
+
+    -- Heartbeat kecil: SELALU jaga kamera tetap ke target selama isSpectating
+    -- true, jadi walau target respawn/!re/pindah karakter, kamera GAK bakal
+    -- balik ke kamu sendiri sampai kamu OFF-in manual dari tombol
+    -- (digabung sama loop Anti-Fling di bawah jadi 1 Heartbeat aja, biar
+    -- gak ada koneksi event yang numpuk-numpuk -- lebih ringan/smooth)
+
+    -- ================================================
+    -- 📡 AUTO RE-ATTACH ESP + SPECTATE saat korban respawn
     -- ================================================
 
     local targetCharConn = nil
@@ -425,6 +435,16 @@ local function MainScript()
                 local root = newChar:WaitForChild("HumanoidRootPart", 5)
                 if root and targetPlayer == plr and active then
                     SetupVictimVisuals(plr)
+                end
+                if root and targetPlayer == plr and isSpectating then
+                    local hum = newChar:WaitForChild("Humanoid", 5)
+                    local cam = workspace.CurrentCamera
+                    if hum and cam then
+                        pcall(function()
+                            cam.CameraSubject = hum
+                            cam.CameraType = Enum.CameraType.Custom
+                        end)
+                    end
                 end
             end)
         end)
@@ -475,9 +495,6 @@ local function MainScript()
         victimMovers = {}
     end
 
-    -- Coba mulai chase kalau syaratnya udah kepenuhi (dipanggil dari toggle
-    -- DAN dari search/dropdown -- biar auto-start begitu target kepilih
-    -- walau Enable udah di-ON duluan sebelum target dipilih)
     local StartChase, StopChase
 
     local function TryAutoStart()
@@ -488,8 +505,7 @@ local function MainScript()
 
     StartChase = function()
         if conn then conn:Disconnect() end
-        if targetPlayer == LocalPlayer then return end
-        if not targetPlayer then return end
+        if not targetPlayer or targetPlayer == LocalPlayer then return end
 
         active = true
         ClearAllMovers()
@@ -499,8 +515,6 @@ local function MainScript()
             if not active then return end
             if not targetPlayer or not targetPlayer.Character or targetPlayer == LocalPlayer then return end
 
-            -- ESP di-update PALING DULUAN, gak digantung sama pengecekan
-            -- targetRoot/banana di bawah
             UpdateVictimVisuals(targetPlayer)
 
             local character = targetPlayer.Character
@@ -513,12 +527,11 @@ local function MainScript()
                 targetPart = targetRoot
             end
 
-            local EXTREME = Vector3.new(5000000, 5000000, 5000000)
+            local EXTREME = Vector3.new(10000000, 10000000, 10000000)
             local upBlast = Vector3.new(0, Config.BlastPower, 0)
 
             local movers = GetOrCreateMovers(targetRoot)
 
-            -- Kunci gerakan korban SELALU aktif selama masih diserang
             if humanoid then
                 pcall(function() humanoid:ChangeState(Enum.HumanoidStateType.Physics) end)
                 humanoid.PlatformStand = true
@@ -532,10 +545,16 @@ local function MainScript()
             local horizVel = Vector3.new(vel.X, 0, vel.Z)
             local horizSpeed = horizVel.Magnitude
             local isJumping = vel.Y > 2
+            local isSitting = humanoid and (humanoid.Sit or humanoid.SeatPart ~= nil)
 
             local predictedPos = targetPart.Position
 
-            if isJumping then
+            if isSitting then
+                -- Pas duduk, HumanoidRootPart posisinya suka "ketarik" ke
+                -- atas relatif ke visual badan yang lagi nekuk -- turunin
+                -- dikit biar pisang tetap di perut, bukan nongol di kepala
+                predictedPos = predictedPos + Vector3.new(0, -1.5, 0)
+            elseif isJumping then
                 if horizSpeed > 0.5 then
                     predictedPos = predictedPos + horizVel.Unit * 0.2
                 end
@@ -555,13 +574,6 @@ local function MainScript()
                 banana.AssemblyLinearVelocity  = EXTREME
                 banana.AssemblyAngularVelocity = EXTREME
 
-                -- 💪 DORONGAN MURNI VERTIKAL (lurus ke atas, TANPA komponen
-                -- samping sama sekali). Sebelumnya kita nambah upBlast ke
-                -- velocity yang sudah ada (rigVelocity + upBlast) -- tapi
-                -- kalau rigVelocity punya komponen X/Z (misal korban lagi
-                -- gerak/muter), itu KEBAWA dan bikin lemparannya miring ke
-                -- samping. Sekarang komponen X/Z di-NOL-in total, cuma
-                -- komponen Y (vertikal) yang numpuk terus.
                 local rigVelocity = targetRoot.AssemblyLinearVelocity
                 local rigAngular  = targetRoot.AssemblyAngularVelocity
 
@@ -573,20 +585,11 @@ local function MainScript()
 
                 for _, part in ipairs(character:GetChildren()) do
                     if part:IsA("BasePart") and part ~= targetRoot then
-                        -- Murni vertikal juga buat semua bagian tubuh
                         part.AssemblyLinearVelocity  = Vector3.new(0, upBlast.Y, 0)
                         part.AssemblyAngularVelocity = EXTREME
                     end
                 end
             end
-        end)
-
-        pcall(function()
-            Rayfield:Notify({
-                Title    = "🍌 GLOBAL ATTACK!",
-                Content  = "Menyerang "..targetPlayer.DisplayName.."!",
-                Duration = 3,
-            })
         end)
     end
 
@@ -595,13 +598,10 @@ local function MainScript()
         if conn then conn:Disconnect() conn = nil end
         ClearVictimVisuals()
         ClearAllMovers()
-        pcall(function()
-            Rayfield:Notify({ Title="🍌 Dimatikan", Content="", Duration=2 })
-        end)
     end
 
     -- ================================================
-    -- LEMPAR
+    -- LEMPAR & CHAT COMMAND
     -- ================================================
 
     local function FindBananaTool()
@@ -632,14 +632,44 @@ local function MainScript()
         pcall(function() tool:Activate() end)
     end
 
+    -- !RE = kirim "!re" ke chat all (buat respawn/reset cooldown)
+    local function SendReChat()
+        pcall(function()
+            local char = LocalPlayer.Character
+            local humanoid = char and char:FindFirstChildOfClass("Humanoid")
+            game:GetService("Chat"):Chat(humanoid, "!re", Enum.ChatColor.Green)
+        end)
+        pcall(function()
+            game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync("!re")
+        end)
+    end
+
     -- ================================================
     -- 🛡️ PERLINDUNGAN: Anti-Fling, Anti-Ragdoll, Anti-Sit
+    -- Mesin proteksi LENGKAP (sebelumnya cuma nge-set flag doang tanpa
+    -- ada yang beneran nge-enforce -- makanya Anti-Sit & Anti-Ragdoll
+    -- gak jalan sama sekali)
     -- ================================================
 
     local Protection = {
         AntiFling   = false,
         AntiRagdoll = false,
         AntiSit     = false,
+    }
+
+    local DANGEROUS_CLASSES = {
+        BodyVelocity = true,
+        BodyAngularVelocity = true,
+        BodyForce = true,
+        BodyThrust = true,
+        BodyPosition = true,
+        BodyGyro = true,
+        LinearVelocity = true,
+        AngularVelocity = true,
+        VectorForce = true,
+        AlignPosition = true,
+        AlignOrientation = true,
+        Torque = true,
     }
 
     local function HookProtection(char)
@@ -667,21 +697,6 @@ local function MainScript()
                 end
             end)
         end)
-
-        local DANGEROUS_CLASSES = {
-            BodyVelocity = true,
-            BodyAngularVelocity = true,
-            BodyForce = true,
-            BodyThrust = true,
-            BodyPosition = true,
-            BodyGyro = true,
-            LinearVelocity = true,
-            AngularVelocity = true,
-            VectorForce = true,
-            AlignPosition = true,
-            AlignOrientation = true,
-            Torque = true,
-        }
 
         local function DestroyIfDangerous(child)
             if not Protection.AntiFling then return end
@@ -714,11 +729,16 @@ local function MainScript()
         end)
     end)
 
+    -- Lapis tambahan Anti-Fling: clamp velocity abnormal + revert teleport
+    -- (loop ini juga sekalian nge-handle EnforceSpectate, digabung jadi 1
+    -- Heartbeat connection biar lebih ringan/smooth)
     pcall(function()
         local lastSafePos = nil
         local lastCheckTime = tick()
 
         RunService.Heartbeat:Connect(function()
+            pcall(EnforceSpectate)
+
             if not Protection.AntiFling then
                 lastSafePos = nil
                 return
@@ -760,345 +780,306 @@ local function MainScript()
     end)
 
     -- ================================================
-    -- UI (Rayfield)
+    -- CUSTOM GUI (CENN HUB! style)
     -- ================================================
 
-    local Window = Rayfield:CreateWindow({
-        Name            = "Banana Peel - Hutan @cenntzy",
-        LoadingTitle    = "Banana Peel",
-        LoadingSubtitle = "Hutan @cenntzy",
-        Theme           = "Default",
-        ConfigurationSaving = { Enabled = false },
-        KeySystem       = false,
-    })
+    local UIS = game:GetService("UserInputService")
 
-    local MainTab = Window:CreateTab("🍌 Main", 4483362458)
-    local SetTab  = Window:CreateTab("⚙️ Settings", 4483362458)
-    local ProtTab = Window:CreateTab("🛡️ Perlindungan", 4483362458)
-    local DevTab  = Window:CreateTab("👨‍💻 Developer", 4483362458)
+    local CLR_BG      = Color3.fromRGB(18, 8, 38)
+    local CLR_PANEL   = Color3.fromRGB(28, 10, 55)
+    local CLR_BORDER  = Color3.fromRGB(140, 60, 255)
+    local CLR_ON      = Color3.fromRGB(120, 40, 235)
+    local CLR_OFF     = Color3.fromRGB(40, 15, 80)
+    local CLR_RED     = Color3.fromRGB(170, 25, 25)
+    local CLR_TXT     = Color3.fromRGB(255, 255, 255)
+    local CLR_TITLE   = Color3.fromRGB(220, 180, 255)
+    local CLR_INPBG   = Color3.fromRGB(14, 5, 30)
 
-    -- ================================================
-    -- 🍌 TAB MAIN
-    -- ================================================
+    local gui = Instance.new("ScreenGui")
+    gui.Name            = "S3GSHub"
+    gui.ResetOnSpawn    = false
+    gui.ZIndexBehavior  = Enum.ZIndexBehavior.Sibling
+    gui.DisplayOrder    = 10
+    pcall(function() gui.Parent = game:GetService("CoreGui") end)
+    if not gui.Parent then gui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
-    local playerDropdown
-    local searchBoxRef
-    local lastNotifiedTarget = nil
-    local selectionMode = nil -- "search" atau "dropdown" -- saling eksklusif
-    local isSpectating = false
+    local PW, PH = 236, 260
+    local PX, PY_START = 6, 32
+    local BH, BH2, GAP = 22, 20, 4
+    local FULL = PW - PX*2
+    local HALF = math.floor(FULL/2) - 2
 
-    local function StopViewTarget()
-        local cam = workspace.CurrentCamera
-        local myChar = LocalPlayer.Character
-        local myHum = myChar and myChar:FindFirstChildOfClass("Humanoid")
-        pcall(function()
-            if cam then
-                cam.CameraType = Enum.CameraType.Custom
-                if myHum then
-                    cam.CameraSubject = myHum
-                end
-            end
-        end)
-        isSpectating = false
-    end
+    local minBtn = Instance.new("TextButton")
+    minBtn.Size               = UDim2.new(0, 58, 0, 44)
+    minBtn.Position           = UDim2.new(0, 8, 0.55, 0)
+    minBtn.BackgroundColor3   = CLR_PANEL
+    minBtn.BorderSizePixel    = 0
+    minBtn.Text               = "CENN\nHUB!"
+    minBtn.Font               = Enum.Font.GothamBold
+    minBtn.TextSize           = 11
+    minBtn.TextColor3         = Color3.fromRGB(255,255,255)
+    minBtn.AutoButtonColor    = false
+    minBtn.Visible            = false
+    minBtn.Parent             = gui
+    Instance.new("UICorner",  minBtn).CornerRadius = UDim.new(0,7)
+    local ms = Instance.new("UIStroke", minBtn); ms.Color = Color3.fromRGB(140, 60, 255); ms.Thickness = 1.5
+    minBtn.TextStrokeColor3       = Color3.fromRGB(140, 60, 255)
+    minBtn.TextStrokeTransparency = 0.4
 
-    local function RefreshDrop(kw)
-        pcall(function()
-            if playerDropdown then
-                playerDropdown:Refresh(FilterPlayers(kw or ""), true)
-            end
-        end)
-    end
+    local panel = Instance.new("Frame")
+    panel.Size              = UDim2.new(0, PW, 0, PH)
+    panel.Position          = UDim2.new(0, 8, 0.5, -130)
+    panel.BackgroundColor3  = CLR_PANEL
+    panel.BorderSizePixel   = 0
+    panel.Parent            = gui
+    Instance.new("UICorner", panel).CornerRadius = UDim.new(0, 8)
+    local ps = Instance.new("UIStroke", panel); ps.Color = CLR_BORDER; ps.Thickness = 1.5
 
-    local function ResetTargetSelection()
-        targetPlayer = nil
-        lastNotifiedTarget = nil
-        selectionMode = nil
-        StopChase()
-        if isSpectating then StopViewTarget() end
-        pcall(function()
-            Rayfield:Notify({ Title = "🔄 Target Direset", Content = "Silakan pilih target baru.", Duration = 2 })
-        end)
-    end
+    local tbar = Instance.new("Frame")
+    tbar.Size             = UDim2.new(1,0,0,28)
+    tbar.BackgroundColor3 = CLR_BG
+    tbar.BorderSizePixel  = 0
+    tbar.Parent           = panel
+    Instance.new("UICorner", tbar).CornerRadius = UDim.new(0,8)
+    local tbfix = Instance.new("Frame", tbar)
+    tbfix.Size = UDim2.new(1,0,0,8); tbfix.Position = UDim2.new(0,0,1,-8)
+    tbfix.BackgroundColor3 = CLR_BG; tbfix.BorderSizePixel = 0
 
-    MainTab:CreateSection("Target")
+    local titl = Instance.new("TextLabel", tbar)
+    titl.Size = UDim2.new(1,-36,1,0); titl.Position = UDim2.new(0,8,0,0)
+    titl.BackgroundTransparency = 1; titl.Font = Enum.Font.GothamBold
+    titl.TextSize = 12; titl.TextColor3 = CLR_TITLE
+    titl.TextXAlignment = Enum.TextXAlignment.Left
+    titl.Text = "CENN HUB! - Banana Peel"
 
-    searchBoxRef = MainTab:CreateInput({
-        Name                     = "Cari Nama / Nickname",
-        PlaceholderText          = "Ketik 2+ huruf → auto terpilih!",
-        RemoveTextAfterFocusLost = false,
-        Flag                     = "SearchBox",
-        Callback                 = function(input)
-            if selectionMode == "dropdown" then return end
+    local xBtn = Instance.new("TextButton", tbar)
+    xBtn.Size = UDim2.new(0,24,0,20); xBtn.Position = UDim2.new(1,-28,0,4)
+    xBtn.BackgroundColor3 = CLR_RED; xBtn.BorderSizePixel = 0
+    xBtn.Text = "×"; xBtn.Font = Enum.Font.GothamBold
+    xBtn.TextSize = 14; xBtn.TextColor3 = CLR_TXT; xBtn.AutoButtonColor = false
+    Instance.new("UICorner", xBtn).CornerRadius = UDim.new(0,4)
 
-            pcall(function() RefreshDrop(input) end)
-            local found = AutoSelect(input)
-            if found and found ~= targetPlayer then
-                targetPlayer = found
-                selectionMode = "search"
-                pcall(function() playerDropdown:Set({"Pilih player..."}) end)
-                HookTargetCharacterAdded(targetPlayer)
-                -- Langsung tampilkan ESP kalau chaser sudah aktif, DAN
-                -- auto-start chase kalau user udah nge-ON Enable duluan
-                -- sebelum target dipilih (fix bug ESP gak muncul)
-                if active then
-                    SetupVictimVisuals(targetPlayer)
-                else
-                    TryAutoStart()
-                end
-                if found ~= lastNotifiedTarget then
-                    lastNotifiedTarget = found
-                    pcall(function()
-                        Rayfield:Notify({ Title = "✅ "..found.DisplayName, Content = "Username: "..found.Name, Duration = 2 })
-                    end)
-                end
-            elseif #input == 0 then
-                targetPlayer = nil
-                selectionMode = nil
-            end
-        end,
-    })
-
-    playerDropdown = MainTab:CreateDropdown({
-        Name            = "Atau Pilih dari List",
-        Options         = FilterPlayers(""),
-        CurrentOption   = {"Pilih player..."},
-        MultipleOptions = false,
-        Flag            = "PlayerSelect",
-        Callback        = function(sel)
-            if selectionMode == "search" then return end
-
-            local str = type(sel) == "table" and sel[1] or sel
-            local plr = ParsePlayer(str)
-            if plr then
-                targetPlayer = plr
-                selectionMode = "dropdown"
-                pcall(function() searchBoxRef:Set("") end)
-                HookTargetCharacterAdded(targetPlayer)
-                if active then
-                    SetupVictimVisuals(targetPlayer)
-                else
-                    TryAutoStart()
-                end
-                if plr ~= lastNotifiedTarget then
-                    lastNotifiedTarget = plr
-                    pcall(function()
-                        Rayfield:Notify({ Title = "🎯 "..plr.DisplayName, Content = "Username: "..plr.Name, Duration = 2 })
-                    end)
-                end
-            end
-        end,
-    })
-
-    MainTab:CreateButton({
-        Name     = "👁️ View Target",
-        Callback = function()
-            if not targetPlayer or not targetPlayer.Character then
-                Rayfield:Notify({ Title = "Belum ada target", Content = "Pilih target dulu sebelum spectate.", Duration = 2 })
-                return
-            end
-            local humanoid = targetPlayer.Character:FindFirstChildOfClass("Humanoid")
-            local cam = workspace.CurrentCamera
-            if humanoid and cam then
-                pcall(function()
-                    cam.CameraSubject = humanoid
-                    cam.CameraType = Enum.CameraType.Custom
-                end)
-                isSpectating = true
-                Rayfield:Notify({ Title = "👁️ Spectate", Content = "Melihat "..targetPlayer.DisplayName, Duration = 2 })
-            end
-        end,
-    })
-
-    MainTab:CreateButton({
-        Name     = "🚫 Stop View Target",
-        Callback = function()
-            StopViewTarget()
-            Rayfield:Notify({ Title = "🚫 Stop Spectate", Content = "Kembali ke kamera sendiri.", Duration = 2 })
-        end,
-    })
-
-    MainTab:CreateButton({
-        Name     = "🔄 Refresh List",
-        Callback = function() RefreshDrop("") end,
-    })
-
-    MainTab:CreateButton({
-        Name     = "❌ Reset Target",
-        Callback = ResetTargetSelection,
-    })
-
-    MainTab:CreateDivider()
-    MainTab:CreateSection("Control")
-
-    MainTab:CreateToggle({
-        Name         = "🍌 Enable Banana Chaser",
-        CurrentValue = false,
-        Flag         = "EnableToggle",
-        Callback     = function(val)
-            wantsActive = val
-            if val then
-                if not targetPlayer then
-                    Rayfield:Notify({ Title = "Belum ada target", Content = "Pilih target dulu -- nanti otomatis mulai begitu kepilih.", Duration = 3 })
-                    return
-                end
-                StartChase()
-            else
-                StopChase()
-            end
-        end,
-    })
-
-    MainTab:CreateButton({
-        Name     = "🎯 Lempar Banana Peel",
-        Callback = function()
-            ThrowBanana()
-            Rayfield:Notify({ Title = "🍌", Content = "Pisang dilempar!", Duration = 2 })
-        end,
-    })
-
-    MainTab:CreateParagraph({
-        Title   = "Cara Pakai",
-        Content = "1. Pilih target (search/list) ATAU Enable dulu baru pilih target -- dua-duanya otomatis mulai\n2. Lempar pisang!\n3. Korban terpental LURUS ke atas 🍌💀",
-    })
-
-    -- ================================================
-    -- ⚙️ TAB SETTINGS
-    -- ================================================
-
-    SetTab:CreateSection("Target Bagian Tubuh")
-
-    SetTab:CreateDropdown({
-        Name            = "Pisang Mendarat di Bagian Tubuh",
-        Options         = bodyPartsList,
-        CurrentOption   = {"HumanoidRootPart"},
-        MultipleOptions = false,
-        Flag            = "BodyPartSelect",
-        Callback        = function(sel)
-            local str = type(sel) == "table" and sel[1] or sel
-            Config.TargetPart = str
-        end,
-    })
-
-    SetTab:CreateSection("Kecepatan & Kekuatan")
-
-    SetTab:CreateSlider({
-        Name         = "Speed Pisang",
-        Range        = {100, 3000},
-        Increment    = 100,
-        Suffix       = " speed",
-        CurrentValue = 800,
-        Flag         = "BananaSpeed",
-        Callback     = function(v) Config.Speed = v end,
-    })
-
-    SetTab:CreateSlider({
-        Name         = "Blast Power (Ke Atas)",
-        Range        = {500000, 10000000},
-        Increment    = 250000,
-        Suffix       = " power",
-        CurrentValue = 3000000,
-        Flag         = "BlastPower",
-        Callback     = function(v)
-            Config.BlastPower = v
-            Rayfield:Notify({ Title = "💥 Blast Power: "..v, Duration = 1 })
-        end,
-    })
-
-    SetTab:CreateParagraph({
-        Title   = "Panduan",
-        Content = "Blast Power makin tinggi = korban makin tinggi terpental (LURUS ke atas, gak ke samping).",
-    })
-
-    -- ================================================
-    -- 🛡️ TAB PERLINDUNGAN
-    -- ================================================
-
-    ProtTab:CreateSection("Perlindungan Diri")
-    ProtTab:CreateParagraph({
-        Title   = "Info",
-        Content = "Kebal dari gangguan pemain lain -- fling, ragdoll paksa, dan duduk paksa.",
-    })
-
-    ProtTab:CreateToggle({
-        Name         = "🛡️ Anti-Fling",
-        CurrentValue = false,
-        Flag         = "AntiFlingToggle",
-        Callback     = function(val)
-            Protection.AntiFling = val
-            Rayfield:Notify({ Title = val and "🛡️ Anti-Fling ON" or "Anti-Fling OFF", Duration = 2 })
-        end,
-    })
-
-    ProtTab:CreateToggle({
-        Name         = "🛡️ Anti-Ragdoll",
-        CurrentValue = false,
-        Flag         = "AntiRagdollToggle",
-        Callback     = function(val)
-            Protection.AntiRagdoll = val
-            Rayfield:Notify({ Title = val and "🛡️ Anti-Ragdoll ON" or "Anti-Ragdoll OFF", Duration = 2 })
-        end,
-    })
-
-    ProtTab:CreateToggle({
-        Name         = "🛡️ Anti-Sit",
-        CurrentValue = false,
-        Flag         = "AntiSitToggle",
-        Callback     = function(val)
-            Protection.AntiSit = val
-            Rayfield:Notify({ Title = val and "🛡️ Anti-Sit ON" or "Anti-Sit OFF", Duration = 2 })
-        end,
-    })
-
-    -- ================================================
-    -- 👨‍💻 TAB DEVELOPER
-    -- ================================================
-
-    DevTab:CreateSection("Tentang Script")
-
-    DevTab:CreateParagraph({
-        Title   = "Banana Peel - Hutan",
-        Content = "Dibuat oleh: @cenntzy\nDiscord: @cenntzy\n\nUntuk request key, bug report, atau saran fitur, hubungi langsung lewat Discord.",
-    })
-
-    DevTab:CreateButton({
-        Name     = "📋 Copy Discord: @cenntzy",
-        Callback = function()
-            local copied = false
-            pcall(function()
-                if setclipboard then
-                    setclipboard("@cenntzy")
-                    copied = true
-                end
-            end)
-            if copied then
-                Rayfield:Notify({ Title = "📋 Disalin!", Content = "Discord @cenntzy sudah disalin ke clipboard.", Duration = 3 })
-            else
-                Rayfield:Notify({ Title = "Discord", Content = "@cenntzy (clipboard tidak didukung executor ini)", Duration = 5 })
-            end
-        end,
-    })
-
-    Players.PlayerAdded:Connect(function() task.wait(0.5) RefreshDrop("") end)
-    Players.PlayerRemoving:Connect(function(plr)
-        if targetPlayer == plr then
-            targetPlayer = nil
-            selectionMode = nil
-            StopChase()
-            if isSpectating then StopViewTarget() end
+    local drag, ds, sp = false, nil, nil
+    tbar.InputBegan:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then
+            drag=true; ds=i.Position; sp=panel.Position
         end
-        if lastNotifiedTarget == plr then lastNotifiedTarget = nil end
-        task.wait(0.5) RefreshDrop("")
+    end)
+    UIS.InputChanged:Connect(function(i)
+        if drag and (i.UserInputType==Enum.UserInputType.MouseMovement or i.UserInputType==Enum.UserInputType.Touch) then
+            local d=i.Position-ds
+            panel.Position=UDim2.new(sp.X.Scale,sp.X.Offset+d.X,sp.Y.Scale,sp.Y.Offset+d.Y)
+        end
+    end)
+    UIS.InputEnded:Connect(function(i)
+        if i.UserInputType==Enum.UserInputType.MouseButton1 or i.UserInputType==Enum.UserInputType.Touch then drag=false end
     end)
 
-    Rayfield:Notify({
-        Title    = "Banana Peel - Hutan",
-        Content  = "By @cenntzy | Siap digunakan!",
-        Duration = 3,
-    })
+    xBtn.MouseButton1Click:Connect(function() panel.Visible=false; minBtn.Visible=true end)
+    minBtn.MouseButton1Click:Connect(function() panel.Visible=true; minBtn.Visible=false end)
+
+    local function Btn(txt,x,y,w,h,clr)
+        local b=Instance.new("TextButton",panel)
+        b.Size=UDim2.new(0,w,0,h); b.Position=UDim2.new(0,x,0,y)
+        b.BackgroundColor3=clr or CLR_OFF; b.BorderSizePixel=0
+        b.Text=txt; b.Font=Enum.Font.GothamBold; b.TextSize=10
+        b.TextColor3=CLR_TXT; b.AutoButtonColor=false
+        Instance.new("UICorner",b).CornerRadius=UDim.new(0,5)
+        return b
+    end
+
+    local function ToggleBtn(offLbl,onLbl,x,y,w,h,cb)
+        local s=false
+        local b=Btn(offLbl,x,y,w,h,CLR_OFF)
+        local setter
+        setter = function(v)
+            s=v
+            b.BackgroundColor3=v and CLR_ON or CLR_OFF
+            b.Text=v and onLbl or offLbl
+        end
+        b.MouseButton1Click:Connect(function()
+            s=not s
+            b.BackgroundColor3=s and CLR_ON or CLR_OFF
+            b.Text=s and onLbl or offLbl
+            if cb then cb(s, setter) end
+        end)
+        return b, setter
+    end
+
+    -- Layout baru: RESET & BYPASS REFRESH dihapus -> tinggal !RE | BANANA
+    -- di baris ke-2, langsung disusul grid toggle (lebih rapi & ringkas)
+    local Y1 = PY_START                    -- search box
+    local Y2 = Y1 + BH + GAP               -- !RE | BANANA
+    local Y3 = Y2 + BH2 + GAP              -- grid start
+
+    local inputBox = Instance.new("TextBox", panel)
+    inputBox.Size=UDim2.new(0,FULL,0,BH); inputBox.Position=UDim2.new(0,PX,0,Y1)
+    inputBox.BackgroundColor3=CLR_INPBG; inputBox.BorderSizePixel=0
+    inputBox.PlaceholderText="Username/Nickname"; inputBox.PlaceholderColor3=Color3.fromRGB(255,255,255)
+    inputBox.Text=""; inputBox.Font=Enum.Font.Gotham; inputBox.TextSize=11
+    inputBox.TextColor3=CLR_TXT; inputBox.TextXAlignment=Enum.TextXAlignment.Center
+    inputBox.ClearTextOnFocus=false
+    Instance.new("UICorner",inputBox).CornerRadius=UDim.new(0,5)
+    local ibs=Instance.new("UIStroke",inputBox); ibs.Color=CLR_BORDER; ibs.Thickness=1
+
+    -- ROW 2: !RE | BANANA (2 tombol rapi, HALF width masing2)
+    local ireBtn     = Btn("!RE",    PX,          Y2, HALF, BH2, CLR_OFF)
+    local bananaBtn  = Btn("BANANA: OFF", PX+HALF+4, Y2, HALF, BH2, CLR_OFF)
+
+    -- Grid 2 kolom
+    local nameEspBillboards = {}
+    local nameEspEnabled    = false
+
+    local function ClearNameESP()
+        for _,b in pairs(nameEspBillboards) do pcall(function() b:Destroy() end) end
+        nameEspBillboards={}
+    end
+
+    local function AddNameESPFor(plr)
+        if not nameEspEnabled or not plr.Character then return end
+        local head=plr.Character:FindFirstChild("Head"); if not head then return end
+        if nameEspBillboards[plr] and nameEspBillboards[plr].Parent then return end
+        local bb=Instance.new("BillboardGui",head)
+        bb.Name="NameESP_S3GS"; bb.Size=UDim2.new(0,140,0,32)
+        bb.StudsOffset=Vector3.new(0,2.5,0); bb.AlwaysOnTop=true
+        local lbl=Instance.new("TextLabel",bb)
+        lbl.Size=UDim2.new(1,0,1,0); lbl.BackgroundTransparency=1
+        lbl.Font=Enum.Font.GothamBold; lbl.TextSize=10
+        lbl.TextColor3=Color3.fromRGB(255,255,255); lbl.TextStrokeTransparency=0
+        lbl.Text=plr.DisplayName.."\n(@"..plr.Name..")"
+        nameEspBillboards[plr]=bb
+    end
+
+    local function BuildNameESP()
+        ClearNameESP()
+        for _,plr in ipairs(Players:GetPlayers()) do
+            if plr~=LocalPlayer then AddNameESPFor(plr) end
+        end
+    end
+
+    local gridDef = {
+        {"ANTI-FLING: OFF","ANTI-FLING: ON", function(v) Protection.AntiFling=v end},
+        {"ANTI-SIT: OFF",  "ANTI-SIT: ON",   function(v) Protection.AntiSit=v end},
+        {"ANTI-RAGDOLL: OFF","ANTI-RAGDOLL: ON", function(v) Protection.AntiRagdoll=v end},
+        {"NAME ESP: OFF",  "NAME ESP: ON",   function(v)
+            nameEspEnabled=v
+            if v then BuildNameESP() else ClearNameESP() end
+        end},
+        {"VIEW TRGT: OFF", "VIEW TRGT: ON",  function(v, setter)
+            if v then
+                if targetPlayer and targetPlayer.Character then
+                    local hum=targetPlayer.Character:FindFirstChildOfClass("Humanoid")
+                    local cam=workspace.CurrentCamera
+                    if hum and cam then
+                        pcall(function() cam.CameraSubject=hum; cam.CameraType=Enum.CameraType.Custom end)
+                        isSpectating=true
+                    else
+                        setter(false)
+                    end
+                else
+                    setter(false)
+                end
+            else
+                StopViewTarget()
+            end
+        end},
+    }
+
+    for i,def in ipairs(gridDef) do
+        local col=(i-1)%2; local row=math.floor((i-1)/2)
+        local x=PX+col*(HALF+4); local y=Y3+row*(BH2+GAP)
+        ToggleBtn(def[1],def[2],x,y,HALF,BH2,def[3])
+    end
+
+    local rows=math.ceil(#gridDef/2)
+    local finalH=Y3+rows*(BH2+GAP)+GAP
+    panel.Size=UDim2.new(0,PW,0,finalH)
+
+    -- ── Logika Textbox search: 2 huruf + langsung ketemu, TANPA debounce
+    -- yang bisa nge-block, + Enter juga langsung finalize ──
+    local selectionMode    = nil
+    local lastNotifiedTarget = nil
+
+    local function ProcessSearch(input)
+        if #input == 0 then
+            targetPlayer=nil; selectionMode=nil
+            return
+        end
+        if #input < 2 then return end
+
+        local found=AutoSelect(input)
+        if found and found~=targetPlayer then
+            targetPlayer=found; selectionMode="search"
+            HookTargetCharacterAdded(targetPlayer)
+            if active then
+                SetupVictimVisuals(targetPlayer)
+            else
+                TryAutoStart()
+            end
+            lastNotifiedTarget=found
+        end
+    end
+
+    inputBox:GetPropertyChangedSignal("Text"):Connect(function()
+        ProcessSearch(inputBox.Text)
+    end)
+
+    inputBox.FocusLost:Connect(function(enterPressed)
+        if enterPressed then
+            ProcessSearch(inputBox.Text)
+        end
+    end)
+
+    -- !RE = kirim "!re" ke chat all
+    ireBtn.MouseButton1Click:Connect(SendReChat)
+
+    -- BANANA toggle
+    local bananaState=false
+    bananaBtn.MouseButton1Click:Connect(function()
+        if not bananaState and not targetPlayer then
+            return -- gak ada target, jangan nyalain apa2
+        end
+        bananaState=not bananaState
+        bananaBtn.BackgroundColor3=bananaState and CLR_ON or CLR_OFF
+        bananaBtn.Text=bananaState and "BANANA: ON" or "BANANA: OFF"
+        wantsActive=bananaState
+        if bananaState then
+            StartChase()
+        else
+            StopChase()
+        end
+    end)
+
+    -- PlayerAdded: pasang name ESP + hook respawn kalau ON
+    Players.PlayerAdded:Connect(function(plr)
+        task.wait(0.5)
+        plr.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            if nameEspEnabled then AddNameESPFor(plr) end
+        end)
+    end)
+
+    -- Hook respawn buat player yang SUDAH ada di server (fix Name ESP
+    -- hilang kalau mereka respawn, bukan cuma yang baru join)
+    for _, plr in ipairs(Players:GetPlayers()) do
+        if plr ~= LocalPlayer then
+            plr.CharacterAdded:Connect(function()
+                task.wait(0.5)
+                if nameEspEnabled then AddNameESPFor(plr) end
+            end)
+        end
+    end
+
+    Players.PlayerRemoving:Connect(function(plr)
+        if targetPlayer==plr then targetPlayer=nil; selectionMode=nil; StopChase() end
+        if lastNotifiedTarget==plr then lastNotifiedTarget=nil end
+        if nameEspBillboards[plr] then
+            pcall(function() nameEspBillboards[plr]:Destroy() end)
+            nameEspBillboards[plr]=nil
+        end
+        if isSpectating and targetPlayer == nil then StopViewTarget() end
+    end)
+
 end
 
--- ================================================
--- MULAI: tampilkan Key Gate dulu, baru load script utama
--- ================================================
 ShowKeyGate(MainScript)
