@@ -1,5 +1,5 @@
 -- ================================================
---   🍌 Banana Peel - Hutan @cenntzy (V1)
+--   🍌 Banana Peel - Hutan  (V1)
 --   Custom GUI "CENN HUB!" style
 -- ================================================
 
@@ -11,7 +11,7 @@ local LocalPlayer  = Players.LocalPlayer
 -- 🔑 Ambil Key dari key.txt di GitHub
 -- ================================================
 
-local KEY_URL = "https://raw.githubusercontent.com/notceenn/cenn_script/refs/heads/main/key.txt"
+local KEY_URL = "https://raw.githubusercontent.com/notceenn/vii_script/refs/heads/main/key.txt"
 
 local function GetRemoteKey()
     local success, result = pcall(function()
@@ -74,7 +74,7 @@ local function ShowKeyGate(onSuccess)
     Title.TextSize = 18
     Title.TextColor3 = Color3.new(1, 1, 1)
     Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.Text = "Banana Peel - Hutan @cenntzy"
+    Title.Text = "Banana Peel - Hutan"
     Title.Parent = Card
 
     local Sub = Instance.new("TextLabel")
@@ -86,7 +86,7 @@ local function ShowKeyGate(onSuccess)
     Sub.TextColor3 = Color3.fromRGB(180, 180, 190)
     Sub.TextXAlignment = Enum.TextXAlignment.Left
     Sub.TextWrapped = true
-    Sub.Text = "Masukkan key untuk membuka script. Key WAJIB dimasukkan setiap kali script dijalankan. Minta key ke @cenntzy."
+    Sub.Text = "Masukkan key untuk membuka script. Key WAJIB dimasukkan setiap kali script dijalankan."
     Sub.Parent = Card
 
     local InputHolder = Instance.new("Frame")
