@@ -1,6 +1,6 @@
 -- ================================================
---   🍌 Banana Peel - Hutan @cenntzy (V1)
---   Custom GUI "CENN HUB!" style
+--   🍌 Banana Peel - Hutan  (V1)
+--   Custom GUI "V HUB!" style
 -- ================================================
 
 local Players      = game:GetService("Players")
@@ -11,7 +11,7 @@ local LocalPlayer  = Players.LocalPlayer
 -- 🔑 Ambil Key dari key.txt di GitHub
 -- ================================================
 
-local KEY_URL = "https://raw.githubusercontent.com/notceenn/cenn_script/refs/heads/main/key.txt"
+local KEY_URL = "https://raw.githubusercontent.com/viihome/vii_script/refs/heads/main/key.txt"
 
 local function GetRemoteKey()
     local success, result = pcall(function()
@@ -74,7 +74,7 @@ local function ShowKeyGate(onSuccess)
     Title.TextSize = 18
     Title.TextColor3 = Color3.new(1, 1, 1)
     Title.TextXAlignment = Enum.TextXAlignment.Left
-    Title.Text = "Banana Peel - Hutan @cenntzy"
+    Title.Text = "Banana Peel - Hutan By V"
     Title.Parent = Card
 
     local Sub = Instance.new("TextLabel")
@@ -86,7 +86,7 @@ local function ShowKeyGate(onSuccess)
     Sub.TextColor3 = Color3.fromRGB(180, 180, 190)
     Sub.TextXAlignment = Enum.TextXAlignment.Left
     Sub.TextWrapped = true
-    Sub.Text = "Masukkan key untuk membuka script. Key WAJIB dimasukkan setiap kali script dijalankan. Minta key ke @cenntzy."
+    Sub.Text = "Masukkan key untuk membuka script. Key WAJIB dimasukkan setiap kali script dijalankan. Minta key ke Admin."
     Sub.Parent = Card
 
     local InputHolder = Instance.new("Frame")
@@ -822,7 +822,7 @@ local function MainScript()
     minBtn.Position           = UDim2.new(0, 8, 0.55, 0)
     minBtn.BackgroundColor3   = CLR_PANEL
     minBtn.BorderSizePixel    = 0
-    minBtn.Text               = "CENN\nHUB!"
+    minBtn.Text               = "V\nHUB!"
     minBtn.Font               = Enum.Font.GothamBold
     minBtn.TextSize           = 11
     minBtn.TextColor3         = Color3.fromRGB(255,255,255)
@@ -858,7 +858,7 @@ local function MainScript()
     titl.BackgroundTransparency = 1; titl.Font = Enum.Font.GothamBold
     titl.TextSize = 12; titl.TextColor3 = CLR_TITLE
     titl.TextXAlignment = Enum.TextXAlignment.Left
-    titl.Text = "CENN HUB! - Banana Peel"
+    titl.Text = "V HUB! - Banana Peel"
 
     local xBtn = Instance.new("TextButton", tbar)
     xBtn.Size = UDim2.new(0,24,0,20); xBtn.Position = UDim2.new(1,-28,0,4)
