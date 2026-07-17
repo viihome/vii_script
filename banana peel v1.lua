@@ -1,6 +1,6 @@
 -- ================================================
---   🍌 Banana Peel - Hutan @cenntzy (V1)
---   Custom GUI "CENN HUB!" style
+--   🍌 Banana Peel - Hutan (V1)
+--   Custom GUI "V HUB!" style
 -- ================================================
 
 local Players      = game:GetService("Players")
