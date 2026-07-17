@@ -11,7 +11,7 @@ local LocalPlayer  = Players.LocalPlayer
 -- 🔑 Ambil Key dari key.txt di GitHub
 -- ================================================
 
-local KEY_URL = "https://raw.githubusercontent.com/notceenn/vii_script/refs/heads/main/key.txt"
+local KEY_URL = "https://raw.githubusercontent.com/viihome/vii_script/refs/heads/main/key.txt"
 
 local function GetRemoteKey()
     local success, result = pcall(function()
