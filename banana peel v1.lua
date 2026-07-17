@@ -780,7 +780,7 @@ local function MainScript()
     end)
 
     -- ================================================
-    -- CUSTOM GUI (CENN HUB! style)
+    -- CUSTOM GUI
     -- ================================================
 
     local UIS = game:GetService("UserInputService")
@@ -814,7 +814,7 @@ local function MainScript()
     minBtn.Position           = UDim2.new(0, 8, 0.55, 0)
     minBtn.BackgroundColor3   = CLR_PANEL
     minBtn.BorderSizePixel    = 0
-    minBtn.Text               = "CENN\nHUB!"
+    minBtn.Text               = "Vii\nHUB!"
     minBtn.Font               = Enum.Font.GothamBold
     minBtn.TextSize           = 11
     minBtn.TextColor3         = Color3.fromRGB(255,255,255)
@@ -850,7 +850,7 @@ local function MainScript()
     titl.BackgroundTransparency = 1; titl.Font = Enum.Font.GothamBold
     titl.TextSize = 12; titl.TextColor3 = CLR_TITLE
     titl.TextXAlignment = Enum.TextXAlignment.Left
-    titl.Text = "CENN HUB! - Banana Peel"
+    titl.Text = "Vii HUB! - Banana Peel"
 
     local xBtn = Instance.new("TextButton", tbar)
     xBtn.Size = UDim2.new(0,24,0,20); xBtn.Position = UDim2.new(1,-28,0,4)
